@@ -18,8 +18,11 @@ const loadingOverlay = document.getElementById('loadingOverlay');
 const namaSiswaSearch = document.getElementById('namaSiswaSearch');
 const studentPickerMenu = document.getElementById('studentPickerMenu');
 const nisInput = document.getElementById('nisInput');
+const nomorUrutInput = document.getElementById('nomorUrutInput');
+const cancelEditBtn = document.getElementById('cancelEditBtn');
 
 let studentList = [];
+let currentEditRowId = null;
 
 function showLoading(state) {
   if (!loadingOverlay) return;
@@ -98,6 +101,76 @@ function getSession() {
   }
 }
 
+function normalizeDateForInput(value) {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const gvizMatch = raw.match(/Date\((\d+),(\d+),(\d+)/i);
+  if (gvizMatch) {
+    const [, year, month, day] = gvizMatch;
+    const date = new Date(Number(year), Number(month), Number(day));
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const monthMap = {
+    jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5,
+    jul: 6, agu: 7, aug: 7, sep: 8, okt: 9, oct: 9, nov: 10, des: 11, dec: 11
+  };
+
+  const numericMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (numericMatch) {
+    const [, d, m, y] = numericMatch;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+
+  const namedMatch = raw.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})$/);
+  if (namedMatch) {
+    const [, d, m, y] = namedMatch;
+    const monthIndex = monthMap[String(m).slice(0, 3).toLowerCase()];
+    if (monthIndex !== undefined) {
+      return `${y}-${String(monthIndex + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return '';
+}
+
+function formatDateForDisplay(value) {
+  if (!value) return '-';
+
+  const raw = String(value).trim();
+  if (!raw) return '-';
+
+  const normalized = normalizeDateForInput(raw);
+  if (!normalized) return raw.replace(/\s+/g, ' ');
+
+  const date = new Date(normalized + 'T00:00:00');
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }).format(date);
+  }
+
+  return raw.replace(/\s+/g, ' ');
+}
+
 function renderAdminRows(rows) {
   adminTableBody.innerHTML = '';
 
@@ -105,7 +178,7 @@ function renderAdminRows(rows) {
     adminSummary.textContent = '0 data';
     adminTableBody.innerHTML = `
       <tr>
-        <td colspan="5" class="empty-state">Belum ada data prestasi</td>
+        <td colspan="7" class="empty-state">Belum ada data prestasi</td>
       </tr>
     `;
     return;
@@ -115,13 +188,34 @@ function renderAdminRows(rows) {
 
   rows.slice(0, 20).forEach((row) => {
     const tr = document.createElement('tr');
+    const rowId = row.nomor_urut || row.no || row.no_urut || '';
+    const tanggalText = formatDateForDisplay(row.tanggal);
+
     tr.innerHTML = `
+      <td>${row.nomor_urut || row.no || row.no_urut || '-'}</td>
       <td>${row.nama_siswa || '-'}</td>
       <td>${row.nama_kegiatan || '-'}</td>
       <td>${row.tingkat_lomba || '-'}</td>
       <td>${row.peringkat || '-'}</td>
-      <td>${row.tanggal || '-'}</td>
+      <td>${tanggalText}</td>
+      <td>
+        <div class="table-actions">
+          <button type="button" class="table-action-btn edit-btn" data-row-id="${rowId}" aria-label="Edit prestasi" title="Edit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm14.71-9.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          </button>
+          <button type="button" class="table-action-btn delete-btn" data-row-id="${rowId}" aria-label="Hapus prestasi" title="Hapus">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7zm3-3h6l1 2h3a1 1 0 0 1 0 2H5a1 1 0 1 1 0-2h3l1-2zm2 7.5v5h2v-5h-2zm-4 0v5h2v-5H7zm8 0v5h2v-5h-2z"/></svg>
+          </button>
+        </div>
+      </td>
     `;
+
+    const editBtn = tr.querySelector('.edit-btn');
+    const deleteBtn = tr.querySelector('.delete-btn');
+
+    editBtn.addEventListener('click', () => openEditRow(row));
+    deleteBtn.addEventListener('click', () => deleteRowById(rowId));
+
     adminTableBody.appendChild(tr);
   });
 }
@@ -299,22 +393,30 @@ async function fetchPrestasiData() {
           row[normalizeKey(header)] = getCellValue(values[index]);
         });
 
+        const nomorUrut = String(pickValue(row, ['nomor_urut', 'no', 'no_urut']) || '').trim();
+        const nis = String(pickValue(row, ['nis', 'nis_siswa', 'nomor_induk', 'nomor_induk_siswa']) || '').trim();
         const namaSiswa = String(pickValue(row, ['nama_siswa', 'nama_peserta_didik', 'nama']) || '').trim();
         const namaKegiatan = String(pickValue(row, ['nama_kegiatan', 'kegiatan']) || '').trim();
         const tingkat = String(pickValue(row, ['tingkat_lomba', 'tingkat']) || '').trim();
         const peringkat = String(pickValue(row, ['peringkat', 'juara']) || '').trim();
-        const tanggal = String(pickValue(row, ['tanggal', 'tgl']) || '').trim();
+        const tanggal = String(pickValue(row, ['tanggal', 'tgl', 'tanggal_lomba', 'tanggal_pelaksanaan']) || '').trim();
+        const penyelenggara = String(pickValue(row, ['penyelenggara']) || '').trim();
+        const tempat = String(pickValue(row, ['tempat', 'tempat_pelaksanaan', 'tempat_lomba']) || '').trim();
 
-        if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal) {
+        if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal && !penyelenggara && !tempat && !nis) {
           return null;
         }
 
         return {
+          nomor_urut: nomorUrut,
+          nis,
           nama_siswa: namaSiswa,
           nama_kegiatan: namaKegiatan,
+          penyelenggara,
           tingkat_lomba: tingkat,
           peringkat,
           tanggal,
+          tempat,
         };
       })
       .filter(Boolean);
@@ -375,32 +477,136 @@ async function loginUser(username, password) {
   }
 }
 
-async function submitPrestasi(payload) {
+function resetEditState() {
+  currentEditRowId = null;
+  if (nomorUrutInput) nomorUrutInput.value = '';
+  if (cancelEditBtn) cancelEditBtn.hidden = true;
+  const submitButton = prestasiForm?.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = 'Simpan Prestasi';
+  }
+}
+
+function populateFormFromRow(row) {
+  if (!prestasiForm) return;
+
+  const fields = {
+    nama_kegiatan: row.nama_kegiatan || '',
+    penyelenggara: row.penyelenggara || '',
+    tanggal: normalizeDateForInput(row.tanggal || row.tanggal_pelaksanaan || ''),
+    tempat: row.tempat || '',
+    tingkat_lomba: row.tingkat_lomba || 'Kabupaten',
+    peringkat: row.peringkat || '',
+    nis: row.nis || row.nis_siswa || '',
+    nama_siswa: row.nama_siswa || '',
+    nomor_urut: row.nomor_urut || '',
+  };
+
+  Object.entries(fields).forEach(([field, value]) => {
+    const input = prestasiForm.querySelector(`[name="${field}"]`);
+    if (input) {
+      input.value = value;
+    }
+  });
+
+  if (nisInput) nisInput.value = String(row.nis || '').trim();
+  if (namaSiswaSearch) namaSiswaSearch.value = String(row.nama_siswa || '').trim();
+  if (nomorUrutInput) nomorUrutInput.value = String(row.nomor_urut || '').trim();
+}
+
+function openEditRow(row) {
+  if (!row) return;
+  currentEditRowId = String(row.nomor_urut || '').trim();
+  populateFormFromRow(row);
+  formStatus.textContent = 'Mode edit aktif. Ubah data lalu simpan.';
+
+  if (cancelEditBtn) cancelEditBtn.hidden = false;
+  const submitButton = prestasiForm?.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.textContent = 'Update Prestasi';
+  }
+}
+
+async function deleteRowById(rowId) {
+  if (!rowId) return;
+
+  const confirmed = window.confirm('Apakah Anda yakin ingin menghapus data prestasi ini?');
+  if (!confirmed) return;
+
   showLoading(true);
   try {
-    const formData = new FormData();
-    formData.append('action', 'addPrestasi');
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+      body: new URLSearchParams({ action: 'deletePrestasi', nomor_urut: String(rowId) }).toString()
+    });
 
+    const text = await response.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (error) {
+      throw new Error('Respons delete bukan JSON.');
+    }
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || 'Gagal menghapus data');
+    }
+
+    formStatus.textContent = 'Data prestasi berhasil dihapus.';
+    resetEditState();
+    await fetchPrestasiData();
+  } catch (error) {
+    formStatus.textContent = error.message || 'Gagal menghapus data.';
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function submitPrestasi(payload, actionName = 'addPrestasi') {
+  showLoading(true);
+  try {
+    const plainPayload = { action: actionName };
     Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'fotoFile' || key === 'dokumenFile') return;
       if (value !== undefined && value !== null && value !== '') {
-        formData.append(key, value);
+        plainPayload[key] = value;
       }
     });
 
     const fotoFile = payload.fotoFile;
     const dokumenFile = payload.dokumenFile;
+    const hasFiles = (fotoFile instanceof File && fotoFile.size > 0) || (dokumenFile instanceof File && dokumenFile.size > 0);
 
-    if (fotoFile instanceof File && fotoFile.size > 0) {
-      formData.set('fotoFile', fotoFile, fotoFile.name);
-    }
+    let requestBody;
+    let requestHeaders = {};
 
-    if (dokumenFile instanceof File && dokumenFile.size > 0) {
-      formData.set('dokumenFile', dokumenFile, dokumenFile.name);
+    if (hasFiles) {
+      const formData = new FormData();
+      Object.entries(plainPayload).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+
+      if (fotoFile instanceof File && fotoFile.size > 0) {
+        formData.set('fotoFile', fotoFile, fotoFile.name);
+      }
+
+      if (dokumenFile instanceof File && dokumenFile.size > 0) {
+        formData.set('dokumenFile', dokumenFile, dokumenFile.name);
+      }
+
+      requestBody = formData;
+    } else {
+      requestBody = new URLSearchParams(plainPayload).toString();
+      requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
     }
 
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      body: formData
+      headers: requestHeaders,
+      body: requestBody
     });
 
     const text = await response.text();
@@ -417,8 +623,12 @@ async function submitPrestasi(payload) {
       throw new Error(result.message || 'Gagal menyimpan data');
     }
 
-    formStatus.textContent = 'Prestasi berhasil disimpan.';
+    formStatus.textContent = actionName === 'updatePrestasi'
+      ? 'Prestasi berhasil diperbarui.'
+      : 'Prestasi berhasil disimpan.';
+
     prestasiForm.reset();
+    resetEditState();
     if (nisInput) nisInput.value = '';
     if (namaSiswaSearch) {
       namaSiswaSearch.value = '';
@@ -531,16 +741,25 @@ loginForm.addEventListener('submit', async (event) => {
 
 logoutBtn.addEventListener('click', () => {
   clearSession();
+  resetEditState();
   updateAuthView();
   loginError.textContent = '';
   formStatus.textContent = '';
   loginForm.reset();
 });
 
+if (cancelEditBtn) {
+  cancelEditBtn.addEventListener('click', () => {
+    prestasiForm.reset();
+    resetEditState();
+    formStatus.textContent = 'Edit dibatalkan.';
+    if (nisInput) nisInput.value = '';
+    if (namaSiswaSearch) namaSiswaSearch.value = '';
+  });
+}
+
 prestasiForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const formData = new FormData(prestasiForm);
-  const payload = Object.fromEntries(formData.entries());
 
   const session = getSession();
   if (!session) {
@@ -548,11 +767,32 @@ prestasiForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  payload.user = session.user || 'admin';
-  payload.fotoFile = formData.get('fotoFile');
-  payload.dokumenFile = formData.get('dokumenFile');
+  const formData = new FormData(prestasiForm);
+  const payload = {
+    nomor_urut: String(formData.get('nomor_urut') || currentEditRowId || '').trim(),
+    nama_kegiatan: String(document.querySelector('[name="nama_kegiatan"]')?.value ?? formData.get('nama_kegiatan') ?? '').trim(),
+    penyelenggara: String(document.querySelector('[name="penyelenggara"]')?.value ?? formData.get('penyelenggara') ?? '').trim(),
+    nis: String((nisInput && nisInput.value) ?? formData.get('nis') ?? '').trim(),
+    nama_siswa: String((namaSiswaSearch && namaSiswaSearch.value) ?? formData.get('nama_siswa') ?? '').trim(),
+    tanggal: String(document.querySelector('[name="tanggal"]')?.value ?? formData.get('tanggal') ?? '').trim(),
+    tempat: String(document.querySelector('[name="tempat"]')?.value ?? formData.get('tempat') ?? '').trim(),
+    tingkat_lomba: String(document.querySelector('[name="tingkat_lomba"]')?.value ?? formData.get('tingkat_lomba') ?? '').trim(),
+    peringkat: String(document.querySelector('[name="peringkat"]')?.value ?? formData.get('peringkat') ?? '').trim(),
+    user: session.user || 'admin',
+    fotoFile: formData.get('fotoFile'),
+    dokumenFile: formData.get('dokumenFile'),
+  };
 
-  await submitPrestasi(payload);
+  const requiredFields = ['nama_kegiatan', 'penyelenggara', 'nis', 'nama_siswa'];
+  const missingFields = requiredFields.filter((field) => !String(payload[field] || '').trim());
+
+  if (missingFields.length) {
+    formStatus.textContent = `Kolom ${missingFields.join(', ')} wajib diisi.`;
+    return;
+  }
+
+  const actionName = currentEditRowId ? 'updatePrestasi' : 'addPrestasi';
+  await submitPrestasi(payload, actionName);
 });
 
 initializeAdminState();

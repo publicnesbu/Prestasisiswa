@@ -77,6 +77,8 @@
         <form id="prestasiForm" class="panel admin-form">
           <h3>Tambah Prestasi Baru</h3>
 
+          <input type="hidden" name="nomor_urut" id="nomorUrutInput" value="">
+
           <div class="admin-grid">
             <label>
               <span>Nama Kegiatan</span>
@@ -130,7 +132,10 @@
 
           <div class="form-footer">
             <p id="formStatus" class="form-status" aria-live="polite"></p>
-            <button type="submit" class="btn btn-primary">Simpan Prestasi</button>
+            <div class="form-actions-inline">
+              <button id="cancelEditBtn" type="button" class="secondary-btn" hidden>Batal Edit</button>
+              <button type="submit" class="btn btn-primary">Simpan Prestasi</button>
+            </div>
           </div>
         </form>
 
@@ -144,11 +149,13 @@
             <table>
               <thead>
                 <tr>
+                  <th>No</th>
                   <th>Nama</th>
                   <th>Kegiatan</th>
                   <th>Tingkat</th>
                   <th>Peringkat</th>
                   <th>Tanggal</th>
+                  <th>Aksi</th>
                 </tr>
               </thead>
               <tbody id="adminTableBody"></tbody>
