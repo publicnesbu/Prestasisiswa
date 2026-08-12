@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1120">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prestasi SMK">
   <title>Admin Prestasi SMKNESBU</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -87,11 +92,9 @@
             </label>
             <label>
               <span>Nama Siswa</span>
-              <div class="search-select-wrap">
-                <input id="namaSiswaSearch" type="search" placeholder="Cari nama siswa..." autocomplete="off">
-                <select id="namaSiswaSelect" name="nama_siswa" required>
-                  <option value="">Pilih nama siswa</option>
-                </select>
+              <div class="student-picker">
+                <input id="namaSiswaSearch" name="nama_siswa" type="search" placeholder="Cari atau pilih nama siswa..." autocomplete="off" required>
+                <div id="studentPickerMenu" class="student-suggestions" hidden></div>
               </div>
             </label>
             <label>
@@ -164,5 +167,14 @@
   </div>
 
   <script src="admin.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((error) => {
+          console.warn('Service worker registration failed:', error);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

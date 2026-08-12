@@ -16,7 +16,7 @@ const adminTableBody = document.getElementById('adminTableBody');
 const adminSummary = document.getElementById('adminSummary');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const namaSiswaSearch = document.getElementById('namaSiswaSearch');
-const namaSiswaSelect = document.getElementById('namaSiswaSelect');
+const studentPickerMenu = document.getElementById('studentPickerMenu');
 const nisInput = document.getElementById('nisInput');
 
 let studentList = [];
@@ -135,6 +135,14 @@ function getCellValue(cell) {
   return cell;
 }
 
+function normalizeKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function parseGvizResponse(text) {
   const cleaned = text
     .replace(/\/\*.*?\*\//gs, '')
@@ -148,42 +156,79 @@ function parseGvizResponse(text) {
   return { rows, cols };
 }
 
+function pickValue(item, aliases) {
+  for (const alias of aliases) {
+    const key = normalizeKey(alias);
+    const value = item[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value;
+    }
+  }
+  return '';
+}
+
+function isHeaderLike(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  const lowered = normalizeKey(text);
+  return ['no', 'nama_kegiatan', 'penyelenggara', 'nama_siswa', 'nis', 'tanggal', 'tempat_pelaksanaan', 'tingkat_lomba', 'peringkat', 'dokumen', 'foto', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(lowered);
+}
+
 function renderStudentOptions(filterText = '') {
-  if (!namaSiswaSelect) return;
+  if (!studentPickerMenu || !namaSiswaSearch) return;
 
   const term = String(filterText || '').trim().toLowerCase();
+  if (!term) {
+    studentPickerMenu.innerHTML = '';
+    studentPickerMenu.hidden = true;
+    return;
+  }
+
   const filteredStudents = studentList.filter((student) => {
     const name = String(student.nama || '').trim().toLowerCase();
     const nis = String(student.nis || '').trim().toLowerCase();
-    if (!term) return true;
-    return name.includes(term) || nis.includes(term);
+    const kelas = String(student.kelas || '').trim().toLowerCase();
+    return name.includes(term) || nis.includes(term) || kelas.includes(term);
   });
 
-  const currentValue = namaSiswaSelect.value;
-  namaSiswaSelect.innerHTML = '<option value="">Pilih nama siswa</option>';
+  const currentValue = namaSiswaSearch.value;
+  studentPickerMenu.innerHTML = '';
 
   if (!filteredStudents.length) {
-    const emptyOption = document.createElement('option');
-    emptyOption.value = '';
-    emptyOption.textContent = 'Data siswa tidak ditemukan';
-    emptyOption.disabled = true;
-    namaSiswaSelect.appendChild(emptyOption);
+    const emptyItem = document.createElement('div');
+    emptyItem.className = 'student-suggestion-empty';
+    emptyItem.textContent = 'Data siswa tidak ditemukan';
+    studentPickerMenu.appendChild(emptyItem);
+    studentPickerMenu.hidden = false;
     return;
   }
 
   filteredStudents.forEach((student) => {
-    const option = document.createElement('option');
-    option.value = String(student.nama || '').trim();
-    option.dataset.nis = String(student.nis || '').trim();
-    option.textContent = `${student.nama || 'Nama tidak tersedia'}${student.nis ? ` (${student.nis})` : ''}`;
-    if (currentValue && option.value === currentValue) {
-      option.selected = true;
-    }
-    namaSiswaSelect.appendChild(option);
+    const nama = String(student.nama || '').trim() || 'Nama tidak tersedia';
+    const nis = String(student.nis || '').trim();
+    const kelas = String(student.kelas || '').trim();
+
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'student-suggestion-item';
+    item.innerHTML = `
+      <span class="student-suggestion-name">${nama}</span>
+      <span class="student-suggestion-meta">${kelas || 'Tanpa kelas'}${nis ? ` - ${nis}` : ''}</span>
+    `;
+
+    item.addEventListener('click', () => {
+      namaSiswaSearch.value = nama;
+      nisInput.value = nis;
+      studentPickerMenu.hidden = true;
+    });
+
+    studentPickerMenu.appendChild(item);
   });
 
+  studentPickerMenu.hidden = false;
+
   if (currentValue) {
-    const selected = filteredStudents.find((student) => String(student.nama || '').trim() === currentValue);
+    const selected = filteredStudents.find((student) => String(student.nama || '').trim().toLowerCase() === currentValue.trim().toLowerCase());
     if (selected) {
       nisInput.value = String(selected.nis || '').trim();
     }
@@ -192,37 +237,44 @@ function renderStudentOptions(filterText = '') {
 
 async function fetchStudentList() {
   try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=DATASISWA`);
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('DATASISWA')}`);
     if (!response.ok) {
       throw new Error('Gagal memuat data siswa');
     }
 
     const text = await response.text();
-    const { rows, cols } = parseGvizResponse(text);
+    const { rows } = parseGvizResponse(text);
 
-    const headers = cols.map((col) => String(col.label || col.id || '').trim().toLowerCase());
+    studentList = rows
+      .map((item) => {
+        const values = item && Array.isArray(item.c) ? item.c : [];
+        const nis = String(getCellValue(values[0]) || '').trim();
+        const nama = String(getCellValue(values[1]) || '').trim();
+        const kelas = String(getCellValue(values[2]) || '').trim();
+        const jenisKelamin = String(getCellValue(values[3]) || '').trim();
 
-    studentList = rows.map((item) => {
-      const values = item.c || [];
-      const row = {};
-      headers.forEach((key, index) => {
-        const value = getCellValue(values[index]);
-        row[key] = value;
-      });
+        const hasValidNis = /^\d{8,}$/.test(nis.replace(/\s+/g, ''));
+        const isHeader = ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nis.toLowerCase()) || ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nama.toLowerCase());
 
-      const nis = String(row.nis || row['nis_siswa'] || '').trim();
-      const nama = String(row.nama_peserta_didik || row.nama_siswa || row.nama || '').trim();
-      if (!nis && !nama) {
-        return null;
-      }
-      return { nis, nama };
-    }).filter(Boolean);
+        if (!nama || !hasValidNis || isHeader) {
+          return null;
+        }
+
+        return {
+          nis,
+          nama,
+          kelas,
+          jenis_kelamin: jenisKelamin,
+        };
+      })
+      .filter(Boolean);
 
     renderStudentOptions();
   } catch (error) {
     console.error('Gagal memuat data siswa:', error);
-    if (namaSiswaSelect) {
-      namaSiswaSelect.innerHTML = '<option value="">Data siswa belum tersedia</option>';
+    if (studentPickerMenu) {
+      studentPickerMenu.innerHTML = '';
+      studentPickerMenu.hidden = true;
     }
   }
 }
@@ -230,48 +282,56 @@ async function fetchStudentList() {
 async function fetchPrestasiData() {
   showLoading(true);
   try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json`);
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('PRESTASI')}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const text = await response.text();
+    const { rows, cols } = parseGvizResponse(text);
+    const headers = cols.map((col) => String(col.label || col.id || ''));
 
-    const cleaned = text.replace(/\/\*.*?\*\//gs, '').replace(/google.visualization.Query.setResponse\(/, '').replace(/\);?$/, '');
-    const payload = JSON.parse(cleaned);
-    const rows = payload.table && Array.isArray(payload.table.rows) ? payload.table.rows : [];
+    const data = rows
+      .map((item) => {
+        const values = item.c || [];
+        const row = {};
+        headers.forEach((header, index) => {
+          row[normalizeKey(header)] = getCellValue(values[index]);
+        });
 
-    const data = rows.map((item) => {
-      const values = item.c || [];
-      const result = {};
+        const namaSiswa = String(pickValue(row, ['nama_siswa', 'nama_peserta_didik', 'nama']) || '').trim();
+        const namaKegiatan = String(pickValue(row, ['nama_kegiatan', 'kegiatan']) || '').trim();
+        const tingkat = String(pickValue(row, ['tingkat_lomba', 'tingkat']) || '').trim();
+        const peringkat = String(pickValue(row, ['peringkat', 'juara']) || '').trim();
+        const tanggal = String(pickValue(row, ['tanggal', 'tgl']) || '').trim();
 
-      const columns = [
-        'id',
-        'nama_kegiatan',
-        'penyelenggara',
-        'nis',
-        'nama_siswa',
-        'tanggal',
-        'tempat',
-        'tingkat_lomba',
-        'peringkat',
-        'foto',
-        'dokumen'
-      ];
+        if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal) {
+          return null;
+        }
 
-      columns.forEach((key, index) => {
-        const cell = values[index];
-        result[key] = cell && cell.v !== undefined ? cell.v : '';
-      });
-
-      return result;
-    });
+        return {
+          nama_siswa: namaSiswa,
+          nama_kegiatan: namaKegiatan,
+          tingkat_lomba: tingkat,
+          peringkat,
+          tanggal,
+        };
+      })
+      .filter(Boolean);
 
     renderAdminRows(data);
   } catch (error) {
     console.error('Gagal memuat data prestasi:', error);
-    adminTableBody.innerHTML = `
-      <tr>
-        <td colspan="5" class="empty-state">Gagal memuat data. Periksa koneksi atau sheet publik.</td>
-      </tr>
-    `;
-    adminSummary.textContent = 'Gagal memuat';
+    if (adminTableBody) {
+      adminTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" class="empty-state">Gagal memuat data. Periksa koneksi atau sheet publik.</td>
+        </tr>
+      `;
+    }
+    if (adminSummary) {
+      adminSummary.textContent = 'Gagal memuat';
+    }
   } finally {
     showLoading(false);
   }
@@ -360,8 +420,11 @@ async function submitPrestasi(payload) {
     formStatus.textContent = 'Prestasi berhasil disimpan.';
     prestasiForm.reset();
     if (nisInput) nisInput.value = '';
-    if (namaSiswaSelect) {
-      namaSiswaSelect.value = '';
+    if (namaSiswaSearch) {
+      namaSiswaSearch.value = '';
+      if (studentPickerMenu) {
+        studentPickerMenu.hidden = true;
+      }
       renderStudentOptions();
     }
     await fetchPrestasiData();
@@ -396,16 +459,57 @@ function updateAuthView() {
 }
 
 if (namaSiswaSearch) {
+  if (studentPickerMenu) {
+    studentPickerMenu.hidden = true;
+  }
+
   namaSiswaSearch.addEventListener('input', (event) => {
-    renderStudentOptions(event.target.value);
+    const value = event.target.value.trim();
+    const chosen = studentList.find((student) => String(student.nama || '').trim().toLowerCase() === value.toLowerCase());
+
+    if (chosen) {
+      nisInput.value = String(chosen.nis || '').trim();
+    } else if (!value) {
+      nisInput.value = '';
+    }
+
+    renderStudentOptions(value);
+  });
+
+  namaSiswaSearch.addEventListener('focus', () => {
+    const value = namaSiswaSearch.value.trim();
+    if (value) {
+      renderStudentOptions(value);
+    } else {
+      studentPickerMenu.hidden = true;
+      studentPickerMenu.innerHTML = '';
+    }
+  });
+
+  namaSiswaSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && studentPickerMenu) {
+      studentPickerMenu.hidden = true;
+      studentPickerMenu.innerHTML = '';
+    }
+  });
+
+  namaSiswaSearch.addEventListener('change', (event) => {
+    const chosen = studentList.find((student) => String(student.nama || '').trim().toLowerCase() === event.target.value.trim().toLowerCase());
+    nisInput.value = chosen ? String(chosen.nis || '').trim() : '';
+    if (studentPickerMenu) {
+      studentPickerMenu.hidden = true;
+      studentPickerMenu.innerHTML = '';
+    }
   });
 }
 
-if (namaSiswaSelect) {
-  namaSiswaSelect.addEventListener('change', (event) => {
-    const chosen = event.target.value;
-    const selected = studentList.find((student) => String(student.nama || '').trim() === chosen);
-    nisInput.value = selected ? String(selected.nis || '').trim() : '';
+if (studentPickerMenu) {
+  document.addEventListener('click', (event) => {
+    const isInsidePicker = event.target.closest('.student-picker');
+    if (!isInsidePicker && !event.target.closest('.student-suggestion-item')) {
+      studentPickerMenu.hidden = true;
+      studentPickerMenu.innerHTML = '';
+    }
   });
 }
 

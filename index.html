@@ -5,9 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Portal Prestasi Siswa SMK Negeri 1 Bumijawa — rekam dan pantau pencapaian siswa secara transparan dan modern.">
   <meta property="og:title" content="Portal Prestasi Siswa SMKNESBU">
+  <title>Prestasi Siswa SMKNESBU</title>
   <meta property="og:description" content="Data prestasi siswa SMK Negeri 1 Bumijawa, diperbarui otomatis dari Google Spreadsheet.">
   <meta property="og:type" content="website">
-  <title>Prestasi Siswa SMKNESBU</title>
+  <meta name="theme-color" content="#0b1120">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prestasi SMK">
+  <link rel="manifest" href="manifest.json">
   <link rel="icon" href="logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -108,5 +113,14 @@
   </div>
 
   <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch((error) => {
+          console.warn('Service worker registration failed:', error);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

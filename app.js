@@ -350,21 +350,17 @@ function createStudentList(rows, headers) {
   const students = [];
   const map = {};
 
-  const objects = parseSheetToObjects(rows, headers)
-    .filter((item) => {
-      const values = Object.values(item).map((value) => String(value ?? '').trim());
-      return values.some((value) => value.length > 0) && !values.every((value) => isHeaderLike(value));
-    });
+  rows.forEach((row) => {
+    const values = row && Array.isArray(row.c) ? row.c : [];
+    const nis = String(getCellValue(values[0]) || '').trim();
+    const nama = String(getCellValue(values[1]) || '').trim();
+    const kelas = String(getCellValue(values[2]) || '').trim();
+    const jenisKelamin = String(getCellValue(values[3]) || '').trim();
 
-  objects.forEach((item) => {
-    const nis = String(pickValue(item, ['nis']) || '').trim();
-    const nama = String(pickValue(item, ['nama_peserta_didik', 'nama_siswa', 'nama']) || '').trim();
-    const kelas = String(pickValue(item, ['kelas']) || '').trim();
-    const jenisKelamin = String(pickValue(item, ['jenis_kelamin']) || '').trim();
+    const hasValidNis = /^\d{8,}$/.test(nis.replace(/\s+/g, ''));
+    const isHeader = ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nis.toLowerCase()) || ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nama.toLowerCase());
 
-    if (!nis && !nama) return;
-    if (/^nis$/i.test(nis) && /^nama/i.test(nama)) return;
-    if (/^nama peserta didik$/i.test(nama) || /^kelas$/i.test(kelas) || /^jenis kelamin$/i.test(jenisKelamin)) return;
+    if (!nama || !hasValidNis || isHeader) return;
 
     const student = { nis, nama_peserta_didik: nama, kelas, jenis_kelamin: jenisKelamin };
     students.push(student);
