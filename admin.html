@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Prestasi SMKNESBU</title>
+  <link rel="icon" href="logo.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-mesh" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="index.html">
+        <img class="brand-logo" src="logo.png" alt="Logo SMKNESBU">
+        <div class="brand-copy">
+          <span class="brand-badge">Admin</span>
+          <span class="brand-name">Manajemen Prestasi</span>
+        </div>
+      </a>
+      <a class="header-login" href="index.html">Lihat Publik</a>
+    </div>
+  </header>
+
+  <main class="main admin-page">
+    <section class="admin-shell">
+      <div class="admin-header panel">
+        <div>
+          <p class="admin-label">Area Manajemen</p>
+          <h2>Prestasi Siswa</h2>
+        </div>
+        <div class="admin-header-actions">
+          <span id="adminUserBadge" class="admin-badge">Belum login</span>
+          <button id="logoutBtn" type="button" class="secondary-btn">Keluar</button>
+        </div>
+      </div>
+
+      <div id="loginContainer" class="panel admin-login-panel" hidden>
+        <div class="login-card compact-login">
+          <div class="login-header">
+            <div class="brand mini-brand">
+              <img class="brand-logo" src="logo.png" alt="Logo SMKNESBU">
+              <div class="brand-copy">
+                <span class="brand-badge">Admin</span>
+                <span class="brand-name">Login Panel</span>
+              </div>
+            </div>
+          </div>
+
+          <form id="loginForm" class="login-form">
+            <label>
+              <span>Username</span>
+              <input id="usernameInput" type="text" name="user" placeholder="Masukkan username" autocomplete="username" required>
+            </label>
+
+            <label>
+              <span>Password</span>
+              <input id="passwordInput" type="password" name="password" placeholder="Masukkan password" autocomplete="current-password" required>
+            </label>
+
+            <button type="submit" class="btn btn-primary btn-block">Masuk</button>
+            <p id="loginError" class="login-error" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+
+      <div id="adminSection" class="admin-layout" hidden>
+        <form id="prestasiForm" class="panel admin-form">
+          <h3>Tambah Prestasi Baru</h3>
+
+          <div class="admin-grid">
+            <label>
+              <span>Nama Kegiatan</span>
+              <input type="text" name="nama_kegiatan" placeholder="Contoh: Lomba Web Design" required>
+            </label>
+            <label>
+              <span>Penyelenggara</span>
+              <input type="text" name="penyelenggara" placeholder="Contoh: Disdik Jawa Tengah" required>
+            </label>
+            <label>
+              <span>NIS</span>
+              <input id="nisInput" type="text" name="nis" placeholder="NIS siswa" readonly required>
+            </label>
+            <label>
+              <span>Nama Siswa</span>
+              <div class="search-select-wrap">
+                <input id="namaSiswaSearch" type="search" placeholder="Cari nama siswa..." autocomplete="off">
+                <select id="namaSiswaSelect" name="nama_siswa" required>
+                  <option value="">Pilih nama siswa</option>
+                </select>
+              </div>
+            </label>
+            <label>
+              <span>Tanggal</span>
+              <input type="date" name="tanggal" required>
+            </label>
+            <label>
+              <span>Tempat</span>
+              <input type="text" name="tempat" placeholder="Contoh: Semarang">
+            </label>
+            <label>
+              <span>Tingkat Lomba</span>
+              <select name="tingkat_lomba">
+                <option value="Kabupaten">Kabupaten</option>
+                <option value="Provinsi">Provinsi</option>
+                <option value="Nasional">Nasional</option>
+                <option value="Internasional">Internasional</option>
+              </select>
+            </label>
+            <label>
+              <span>Peringkat</span>
+              <input type="text" name="peringkat" placeholder="Contoh: Juara 1">
+            </label>
+            <label>
+              <span>Upload Foto Kegiatan</span>
+              <input type="file" name="fotoFile" accept="image/*">
+            </label>
+            <label>
+              <span>Upload Dokumen</span>
+              <input type="file" name="dokumenFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,image/*">
+            </label>
+          </div>
+
+          <div class="form-footer">
+            <p id="formStatus" class="form-status" aria-live="polite"></p>
+            <button type="submit" class="btn btn-primary">Simpan Prestasi</button>
+          </div>
+        </form>
+
+        <div class="panel admin-table-panel">
+          <div class="admin-table-head">
+            <h3>Data Saat Ini</h3>
+            <span id="adminSummary" class="admin-summary">0 data</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>Kegiatan</th>
+                  <th>Tingkat</th>
+                  <th>Peringkat</th>
+                  <th>Tanggal</th>
+                </tr>
+              </thead>
+              <tbody id="adminTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="loadingOverlay" class="loading-overlay" hidden>
+    <div class="loading-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Memuat data prestasi...</p>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
