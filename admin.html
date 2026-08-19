@@ -18,144 +18,189 @@
 <body>
   <div class="bg-mesh" aria-hidden="true"></div>
 
-  <header class="topbar">
+  <header class="topbar admin-topbar" id="adminTopbar" hidden>
     <div class="topbar-inner">
       <a class="brand" href="index.html">
         <img class="brand-logo" src="logo.png" alt="Logo SMKNESBU">
         <div class="brand-copy">
-          <span class="brand-badge">Admin</span>
+          <span class="brand-badge admin-brand-badge">Admin</span>
           <span class="brand-name">Manajemen Prestasi</span>
         </div>
       </a>
-      <a class="header-login" href="index.html">Lihat Publik</a>
+      <div class="admin-topbar-actions">
+        <span id="adminUserBadge" class="admin-badge">Belum login</span>
+        <a class="header-login" href="index.html">Lihat Publik</a>
+        <button id="logoutBtn" type="button" class="secondary-btn" hidden>Keluar</button>
+      </div>
     </div>
   </header>
 
-  <main class="main admin-page">
+  <!-- ── Full-screen Admin Login ── -->
+  <div id="loginContainer" class="admin-login-screen">
+    <!-- Decorative left panel -->
+    <div class="login-deco" aria-hidden="true">
+      <div class="login-deco__inner">
+        <div class="login-deco__glow"></div>
+        <div class="login-deco__grid"></div>
+        <div class="login-deco__content">
+          <div class="login-deco__shield">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 4L8 14v18c0 13.25 10.4 25.64 24 28 13.6-2.36 24-14.75 24-28V14L32 4z" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+              <path d="M32 16L18 22v10c0 7.5 5.9 14.5 14 16 8.1-1.5 14-8.5 14-16V22L32 16z" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+              <path d="M26 32l4 4 8-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <p class="login-deco__school">SMK Negeri 1 Bumijawa</p>
+          <h1 class="login-deco__title">Panel<br>Administrator</h1>
+          <p class="login-deco__sub">Kelola data prestasi siswa secara aman dan terpusat.</p>
+          <div class="login-deco__chips">
+            <span>Tambah Prestasi</span>
+            <span>Edit Data</span>
+            <span>Hapus Data</span>
+          </div>
+        </div>
+        <!-- Decorative floating orbs -->
+        <div class="deco-orb deco-orb--1"></div>
+        <div class="deco-orb deco-orb--2"></div>
+        <div class="deco-orb deco-orb--3"></div>
+      </div>
+    </div>
+
+    <!-- Right login form panel -->
+    <div class="login-form-panel">
+      <div class="login-form-wrap">
+        <div class="login-form-logo">
+          <img src="logo.png" alt="Logo SMKNESBU" width="56" height="56">
+        </div>
+        <p class="login-eyebrow">SMKNESBU · Admin</p>
+        <h2 class="login-title">Masuk ke Dashboard</h2>
+        <p class="login-hint">Gunakan kredensial admin untuk mengakses panel manajemen prestasi.</p>
+
+        <form id="loginForm" class="login-form-new" novalidate>
+          <div class="lf-field">
+            <label class="lf-label" for="usernameInput">Username</label>
+            <div class="lf-input-wrap">
+              <span class="lf-input-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                </svg>
+              </span>
+              <input id="usernameInput" class="lf-input" type="text" name="user"
+                placeholder="Masukkan username" autocomplete="username" required>
+            </div>
+          </div>
+
+          <div class="lf-field">
+            <label class="lf-label" for="passwordInput">Password</label>
+            <div class="lf-input-wrap">
+              <span class="lf-input-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </span>
+              <input id="passwordInput" class="lf-input" type="password" name="password"
+                placeholder="Masukkan password" autocomplete="current-password" required>
+              <button type="button" id="togglePassword" class="lf-eye-btn" aria-label="Tampilkan password" tabindex="-1">
+                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg id="eyeOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden>
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <p id="loginError" class="lf-error" aria-live="polite"></p>
+
+          <button type="submit" id="loginSubmitBtn" class="lf-submit">
+            <span>Masuk</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </form>
+
+        <div class="lf-footer">
+          <a href="index.html" class="lf-back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Kembali ke Halaman Utama
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dashboard (after login) ── -->
+  <main class="main admin-page" id="adminMain" hidden>
     <section class="admin-shell">
       <div class="admin-header panel">
         <div>
           <p class="admin-label">Area Manajemen</p>
-          <h2>Prestasi Siswa</h2>
+          <h2>Dashboard Prestasi Siswa</h2>
         </div>
         <div class="admin-header-actions">
-          <span id="adminUserBadge" class="admin-badge">Belum login</span>
-          <button id="logoutBtn" type="button" class="secondary-btn">Keluar</button>
+          <button id="openAddModalBtn" type="button" class="btn btn-primary btn-add-highlight">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Tambah Prestasi</span>
+          </button>
+          <span id="adminUserBadgeDashboard" class="admin-badge">Admin</span>
+          <button id="logoutBtnAlt" type="button" class="secondary-btn">Keluar</button>
         </div>
       </div>
 
-      <div id="loginContainer" class="panel admin-login-panel" hidden>
-        <div class="login-card compact-login">
-          <div class="login-header">
-            <div class="brand mini-brand">
-              <img class="brand-logo" src="logo.png" alt="Logo SMKNESBU">
-              <div class="brand-copy">
-                <span class="brand-badge">Admin</span>
-                <span class="brand-name">Login Panel</span>
-              </div>
-            </div>
-          </div>
+      <nav class="admin-tab-nav" id="adminTabNav" hidden>
+        <button type="button" class="admin-tab-btn active" data-tab="prestasi" id="tabBtnPrestasi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+          Data Prestasi
+        </button>
+        <button type="button" class="admin-tab-btn" data-tab="users" id="tabBtnUsers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Manajemen User
+        </button>
+      </nav>
 
-          <form id="loginForm" class="login-form">
-            <label>
-              <span>Username</span>
-              <input id="usernameInput" type="text" name="user" placeholder="Masukkan username" autocomplete="username" required>
-            </label>
-
-            <label>
-              <span>Password</span>
-              <input id="passwordInput" type="password" name="password" placeholder="Masukkan password" autocomplete="current-password" required>
-            </label>
-
-            <button type="submit" class="btn btn-primary btn-block">Masuk</button>
-            <p id="loginError" class="login-error" aria-live="polite"></p>
-          </form>
-        </div>
-      </div>
-
-      <div id="adminSection" class="admin-layout" hidden>
-        <form id="prestasiForm" class="panel admin-form">
-          <h3>Tambah Prestasi Baru</h3>
-
-          <input type="hidden" name="nomor_urut" id="nomorUrutInput" value="">
-
-          <div class="admin-grid">
-            <label>
-              <span>Nama Kegiatan</span>
-              <input type="text" name="nama_kegiatan" placeholder="Contoh: Lomba Web Design" required>
-            </label>
-            <label>
-              <span>Penyelenggara</span>
-              <input type="text" name="penyelenggara" placeholder="Contoh: Disdik Jawa Tengah" required>
-            </label>
-            <label>
-              <span>NIS</span>
-              <input id="nisInput" type="text" name="nis" placeholder="NIS siswa" readonly required>
-            </label>
-            <label>
-              <span>Nama Siswa</span>
-              <div class="student-picker">
-                <input id="namaSiswaSearch" name="nama_siswa" type="search" placeholder="Cari atau pilih nama siswa..." autocomplete="off" required>
-                <div id="studentPickerMenu" class="student-suggestions" hidden></div>
-              </div>
-            </label>
-            <label>
-              <span>Tanggal</span>
-              <input type="date" name="tanggal" required>
-            </label>
-            <label>
-              <span>Tempat</span>
-              <input type="text" name="tempat" placeholder="Contoh: Semarang">
-            </label>
-            <label>
-              <span>Tingkat Lomba</span>
-              <select name="tingkat_lomba">
-                <option value="Kabupaten">Kabupaten</option>
-                <option value="Provinsi">Provinsi</option>
-                <option value="Nasional">Nasional</option>
-                <option value="Internasional">Internasional</option>
-              </select>
-            </label>
-            <label>
-              <span>Peringkat</span>
-              <input type="text" name="peringkat" placeholder="Contoh: Juara 1">
-            </label>
-            <label>
-              <span>Upload Foto Kegiatan</span>
-              <input type="file" name="fotoFile" accept="image/*">
-            </label>
-            <label>
-              <span>Upload Dokumen</span>
-              <input type="file" name="dokumenFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,image/*">
-            </label>
-          </div>
-
-          <div class="form-footer">
-            <p id="formStatus" class="form-status" aria-live="polite"></p>
-            <div class="form-actions-inline">
-              <button id="cancelEditBtn" type="button" class="secondary-btn" hidden>Batal Edit</button>
-              <button type="submit" class="btn btn-primary">Simpan Prestasi</button>
-            </div>
-          </div>
-        </form>
-
+      <div id="adminSection" class="admin-full-table-section" data-tab-panel="prestasi">
+        <!-- Table Panel -->
         <div class="panel admin-table-panel">
           <div class="admin-table-head">
-            <h3>Data Saat Ini</h3>
-            <span id="adminSummary" class="admin-summary">0 data</span>
+            <div>
+              <h3>Data Prestasi Terdaftar</h3>
+              <p class="table-subtitle">Daftar semua pencapaian dan prestasi siswa SMK Negeri 1 Bumijawa.</p>
+            </div>
+            <div class="table-head-right">
+              <span id="adminSummary" class="admin-summary-pill">0 data</span>
+              <button id="openAddModalBtnAlt" type="button" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Tambah Prestasi</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="admin-table-toolbar">
+            <div class="table-search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="adminSearchInput" type="search" placeholder="Cari nama siswa, NIS, kegiatan, penyelenggara, tingkat, peringkat..." autocomplete="off">
+            </div>
           </div>
 
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>No</th>
-                  <th>Nama</th>
-                  <th>Kegiatan</th>
+                  <th style="width: 55px;">No</th>
+                  <th>Nama Siswa</th>
+                  <th>Kegiatan / Lomba</th>
                   <th>Tingkat</th>
                   <th>Peringkat</th>
                   <th>Tanggal</th>
-                  <th>Aksi</th>
+                  <th style="width: 100px; text-align: center;">Aksi</th>
                 </tr>
               </thead>
               <tbody id="adminTableBody"></tbody>
@@ -163,8 +208,280 @@
           </div>
         </div>
       </div>
+
+      <!-- ── User Management Panel ── -->
+      <div id="userSection" class="admin-full-table-section" data-tab-panel="users" hidden>
+        <div class="panel admin-table-panel">
+          <div class="admin-table-head">
+            <div>
+              <h3>Daftar Pengguna</h3>
+              <p class="table-subtitle">Kelola akun pengguna dengan role Admin atau Guru Pembimbing.</p>
+            </div>
+            <div class="table-head-right">
+              <span id="userSummary" class="admin-summary-pill">0 user</span>
+              <button id="openAddUserModalBtn" type="button" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Tambah User</span>
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 55px;">No</th>
+                  <th>Nama Lengkap</th>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th style="width: 100px; text-align: center;">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
+
+  <!-- ── Modal Form Tambah / Edit Prestasi ── -->
+  <div id="prestasiModal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <div class="modal-title-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </div>
+          <div class="modal-title-text">
+            <div class="modal-title-row">
+              <h3 id="formTitle">Tambah Prestasi Baru</h3>
+              <span id="formModeBadge" class="form-badge form-badge--new">Entri Baru</span>
+            </div>
+            <p class="modal-subtitle">Lengkapi formulir untuk mencatat prestasi siswa</p>
+          </div>
+        </div>
+        <button type="button" id="closeModalBtn" class="modal-close-btn" aria-label="Tutup form">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Scrollable Body (Form) -->
+      <form id="prestasiForm" class="modal-body" novalidate>
+        <input type="hidden" name="nomor_urut" id="nomorUrutInput" value="">
+
+        <div class="modal-grid">
+          <div class="form-field form-field--full">
+            <label class="form-label" for="namaKegiatanInput">
+              <span class="label-text">Nama Kegiatan / Lomba</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="namaKegiatanInput" class="admin-input" type="text" name="nama_kegiatan" placeholder="Contoh: LKS Web Technologies 2025" required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="penyelenggaraInput">
+              <span class="label-text">Penyelenggara</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="penyelenggaraInput" class="admin-input" type="text" name="penyelenggara" placeholder="Contoh: Dinas Pendidikan Jateng" required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="tingkatLombaSelect">
+              <span class="label-text">Tingkat Lomba</span>
+              <span class="label-req">*</span>
+            </label>
+            <div class="select-wrap">
+              <select id="tingkatLombaSelect" class="admin-select" name="tingkat_lomba">
+                <option value="Kabupaten">Kabupaten</option>
+                <option value="Provinsi">Provinsi</option>
+                <option value="Nasional">Nasional</option>
+                <option value="Internasional">Internasional</option>
+              </select>
+              <span class="select-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="form-field form-field--full">
+            <label class="form-label" for="namaSiswaSearch">
+              <span class="label-text">Nama Siswa</span>
+              <span class="label-req">*</span>
+              <span class="label-hint">(bisa pilih lebih dari satu)</span>
+            </label>
+            <div class="student-picker">
+              <div id="selectedStudentsChips" class="selected-students-chips" hidden></div>
+              <div class="picker-input-wrap">
+                <span class="picker-search-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </span>
+                <input id="namaSiswaSearch" class="admin-input admin-input--with-icon" type="search" placeholder="Ketik nama atau NIS untuk mencari, lalu pilih..." autocomplete="off">
+              </div>
+              <div id="studentPickerMenu" class="student-suggestions" hidden></div>
+              <input type="hidden" id="namaSiswaHiddenInput" name="nama_siswa" value="">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="nisInput">
+              <span class="label-text">NIS Siswa</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="nisInput" class="admin-input admin-input--readonly" type="text" name="nis" placeholder="Terisi otomatis" readonly required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="peringkatInput">
+              <span class="label-text">Peringkat / Capaian</span>
+            </label>
+            <input id="peringkatInput" class="admin-input" type="text" name="peringkat" placeholder="Contoh: Juara 1, Medali Emas">
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="tanggalInput">
+              <span class="label-text">Tanggal Pelaksanaan</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="tanggalInput" class="admin-input" type="date" name="tanggal" required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="tempatInput">
+              <span class="label-text">Tempat Pelaksanaan</span>
+            </label>
+            <input id="tempatInput" class="admin-input" type="text" name="tempat" placeholder="Contoh: Semarang, Jawa Tengah">
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="fotoFileInput">
+              <span class="label-text">Foto Kegiatan</span>
+            </label>
+            <div class="file-upload-box">
+              <input id="fotoFileInput" class="file-input-native" type="file" name="fotoFile" accept="image/*">
+              <div class="file-upload-visual">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                <span class="file-upload-text" id="fotoFileLabel">Pilih Foto Kegiatan</span>
+                <span class="file-upload-hint">JPG, PNG, WebP (Maks. 10MB)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="dokumenFileInput">
+              <span class="label-text">Dokumen / Sertifikat</span>
+            </label>
+            <div class="file-upload-box">
+              <input id="dokumenFileInput" class="file-input-native" type="file" name="dokumenFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,image/*">
+              <div class="file-upload-visual">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span class="file-upload-text" id="dokumenFileLabel">Pilih Dokumen / Sertifikat</span>
+                <span class="file-upload-hint">PDF, DOC, Gambar pendukung</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer (inside form for submit) -->
+        <div class="modal-footer">
+          <button type="button" id="cancelModalBtn" class="btn-modal-cancel">Batal</button>
+          <button type="submit" id="submitPrestasiBtn" class="btn-modal-submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span id="submitBtnText">Simpan Prestasi</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- ── Modal Form Tambah User ── -->
+  <div id="userModal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="userFormTitle">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <div class="modal-title-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="modal-title-text">
+            <div class="modal-title-row">
+              <h3 id="userFormTitle">Tambah Pengguna Baru</h3>
+              <span class="form-badge form-badge--new">Pengguna Baru</span>
+            </div>
+            <p class="modal-subtitle">Isi data akun untuk pengguna baru</p>
+          </div>
+        </div>
+        <button type="button" id="closeUserModalBtn" class="modal-close-btn" aria-label="Tutup form">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="userForm" class="modal-body" novalidate>
+        <div class="modal-grid">
+          <div class="form-field form-field--full">
+            <label class="form-label" for="namaUserInput">
+              <span class="label-text">Nama Lengkap</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="namaUserInput" class="admin-input" type="text" name="nama_user" placeholder="Contoh: Budi Santoso, S.Pd" required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="usernameUserInput">
+              <span class="label-text">Username</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="usernameUserInput" class="admin-input" type="text" name="user" placeholder="Contoh: guru_budi" required autocomplete="off">
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="roleUserSelect">
+              <span class="label-text">Role</span>
+              <span class="label-req">*</span>
+            </label>
+            <div class="select-wrap">
+              <select id="roleUserSelect" class="admin-select" name="role">
+                <option value="guru_pembimbing">Guru Pembimbing</option>
+                <option value="admin">Admin</option>
+              </select>
+              <span class="select-arrow" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="passwordUserInput">
+              <span class="label-text">Password</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="passwordUserInput" class="admin-input" type="password" name="password" placeholder="Minimal 6 karakter" required autocomplete="new-password">
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="confirmPasswordUserInput">
+              <span class="label-text">Konfirmasi Password</span>
+              <span class="label-req">*</span>
+            </label>
+            <input id="confirmPasswordUserInput" class="admin-input" type="password" name="confirm_password" placeholder="Ulangi password" required autocomplete="new-password">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="cancelUserModalBtn" class="btn-modal-cancel">Batal</button>
+          <button type="submit" id="submitUserBtn" class="btn-modal-submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            <span id="submitUserBtnText">Simpan User</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Toast Notifications Container ── -->
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
   <div id="loadingOverlay" class="loading-overlay" hidden>
     <div class="loading-card">

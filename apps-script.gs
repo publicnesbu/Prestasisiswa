@@ -93,10 +93,89 @@ function writePrestasiRow(payload) {
   return { success: true };
 }
 
+function findRowIndex(sheet, payload) {
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return -1;
+
+  const headerRow = data[0] || [];
+  const headerMap = {};
+  headerRow.forEach((header, index) => {
+    headerMap[normalizeHeaderName(header)] = index;
+  });
+
+  // 1. Try by row index (nomor_urut) if it's a valid row number
+  const nomorUrut = parseInt(payload.nomor_urut, 10);
+  if (!isNaN(nomorUrut) && nomorUrut >= 2 && nomorUrut <= data.length) {
+    const candidateRow = data[nomorUrut - 1]; // 0-indexed in JS array
+    // Verify if it matches key fields
+    if (matchesKeyFields(candidateRow, headerMap, payload)) {
+      return nomorUrut;
+    }
+  }
+
+  // 2. Search all rows for a match on key fields
+  for (let i = 1; i < data.length; i++) {
+    if (matchesKeyFields(data[i], headerMap, payload)) {
+      return i + 1; // 1-based row index in sheet
+    }
+  }
+
+  // 3. Fallback to just the row number if we can't find a value-based match but the row number is provided and valid
+  if (!isNaN(nomorUrut) && nomorUrut >= 2 && nomorUrut <= data.length) {
+    return nomorUrut;
+  }
+
+  return -1;
+}
+
+function matchesKeyFields(row, headerMap, payload) {
+  const fieldsToCompare = [
+    { key: 'nama_siswa', aliases: ['nama_siswa', 'nama_peserta_didik', 'nama'] },
+    { key: 'nis', aliases: ['nis', 'nis_siswa'] },
+    { key: 'nama_kegiatan', aliases: ['nama_kegiatan', 'nama_lomba', 'kegiatan'] },
+    { key: 'tanggal', aliases: ['tanggal', 'tgl', 'tanggal_pelaksanaan'] }
+  ];
+
+  for (const field of fieldsToCompare) {
+    const sheetColIndex = field.aliases
+      .map(alias => normalizeHeaderName(alias))
+      .map(aliasKey => headerMap[aliasKey])
+      .find(index => index !== undefined);
+
+    if (sheetColIndex !== undefined) {
+      const sheetVal = row[sheetColIndex];
+      const payloadVal = payload[field.key];
+      if (payloadVal !== undefined && payloadVal !== null && String(payloadVal).trim() !== '') {
+        const sheetStr = getFormattedValue(sheetVal);
+        const payloadStr = String(payloadVal).trim();
+        if (sheetStr.toLowerCase() !== payloadStr.toLowerCase()) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+function getFormattedValue(value) {
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return String(value || '').trim();
+}
+
 function updatePrestasiRow(payload) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName('PRESTASI');
   if (!sheet) throw new Error('Sheet PRESTASI tidak ditemukan.');
+
+  const targetRowIndex = findRowIndex(sheet, payload);
+  if (targetRowIndex === -1) {
+    throw new Error('Data prestasi yang akan diupdate tidak ditemukan.');
+  }
 
   const data = sheet.getDataRange().getValues();
   const headerRow = data[0] || [];
@@ -104,24 +183,6 @@ function updatePrestasiRow(payload) {
   headerRow.forEach((header, index) => {
     headerMap[normalizeHeaderName(header)] = index;
   });
-
-  const nomorUrut = normalizeFormValue(payload.nomor_urut || '');
-  if (!nomorUrut) {
-    throw new Error('Nomor urut tidak valid untuk update data.');
-  }
-
-  let targetRowIndex = -1;
-  for (let index = 1; index < data.length; index += 1) {
-    const currentValue = String(data[index][headerMap.nomor_urut] || '').trim();
-    if (currentValue === nomorUrut) {
-      targetRowIndex = index + 1;
-      break;
-    }
-  }
-
-  if (targetRowIndex === -1) {
-    throw new Error('Data prestasi yang akan diupdate tidak ditemukan.');
-  }
 
   const fieldAliases = {
     nama_kegiatan: ['nama_kegiatan', 'nama_lomba', 'kegiatan'],
@@ -137,7 +198,9 @@ function updatePrestasiRow(payload) {
   };
 
   const updatedRow = Array(headerRow.length).fill('');
-  updatedRow[headerMap.nomor_urut] = nomorUrut;
+  if (headerMap.nomor_urut !== undefined) {
+    updatedRow[headerMap.nomor_urut] = String(payload.nomor_urut || '');
+  }
 
   Object.entries(fieldAliases).forEach(([field, aliases]) => {
     const targetHeader = aliases
@@ -150,6 +213,17 @@ function updatePrestasiRow(payload) {
     const value = payload[field];
     updatedRow[columnIndex] = value !== undefined && value !== null ? String(value).trim() : '';
   });
+
+  // Preserve existing photo/document if no new file is uploaded
+  const existingRow = data[targetRowIndex - 1];
+  const fotoHeaderIdx = headerMap.foto;
+  if (fotoHeaderIdx !== undefined && !updatedRow[fotoHeaderIdx]) {
+    updatedRow[fotoHeaderIdx] = String(existingRow[fotoHeaderIdx] || '').trim();
+  }
+  const docHeaderIdx = headerMap.dokumen;
+  if (docHeaderIdx !== undefined && !updatedRow[docHeaderIdx]) {
+    updatedRow[docHeaderIdx] = String(existingRow[docHeaderIdx] || '').trim();
+  }
 
   sheet.getRange(targetRowIndex, 1, 1, headerRow.length).setValues([updatedRow]);
   return { success: true, row: targetRowIndex };
@@ -311,38 +385,115 @@ function doPost(e) {
 
     if (action === 'deletePrestasi') {
       const nomorUrut = normalizeFormValue(body.nomor_urut || e.parameter && e.parameter.nomor_urut);
-      if (!nomorUrut) {
-        return jsonResponse({ success: false, message: 'Nomor urut tidak valid.' });
-      }
+      const payload = {
+        nomor_urut: nomorUrut,
+        nama_siswa: normalizeFormValue(body.nama_siswa || e.parameter && e.parameter.nama_siswa),
+        nis: normalizeFormValue(body.nis || e.parameter && e.parameter.nis),
+        nama_kegiatan: normalizeFormValue(body.nama_kegiatan || e.parameter && e.parameter.nama_kegiatan),
+        tanggal: normalizeFormValue(body.tanggal || e.parameter && e.parameter.tanggal)
+      };
 
       const sheet = getSpreadsheet().getSheetByName('PRESTASI');
       if (!sheet) {
         return jsonResponse({ success: false, message: 'Sheet PRESTASI tidak ditemukan.' });
       }
 
-      const data = sheet.getDataRange().getValues();
-      const headerRow = data[0] || [];
-      const nomorUrutIndex = headerRow.findIndex((header) => normalizeHeaderName(header) === 'nomor_urut');
-
-      if (nomorUrutIndex === -1) {
-        return jsonResponse({ success: false, message: 'Kolom nomor_urut tidak ditemukan di sheet PRESTASI.' });
+      const targetRowIndex = findRowIndex(sheet, payload);
+      if (targetRowIndex === -1) {
+        return jsonResponse({ success: false, message: 'Data prestasi tidak ditemukan untuk dihapus.' });
       }
 
-      let deleted = false;
-      for (let rowIndex = 1; rowIndex < data.length; rowIndex += 1) {
-        const candidate = String(data[rowIndex][nomorUrutIndex] || '').trim();
-        if (candidate === nomorUrut) {
-          sheet.deleteRow(rowIndex + 1);
-          deleted = true;
+      sheet.deleteRow(targetRowIndex);
+      return jsonResponse({ success: true, message: 'Data prestasi berhasil dihapus.' });
+    }
+
+    if (action === 'getUsers') {
+      const ss = getSpreadsheet();
+      const sheet = ss.getSheetByName('AKUN');
+      if (!sheet) {
+        return jsonResponse({ success: false, message: 'Sheet AKUN tidak ditemukan.' });
+      }
+      const rows = sheet.getDataRange().getValues();
+      const users = rows.slice(1).map((row) => ({
+        id: String(row[0] || '').trim(),
+        user: String(row[1] || '').trim(),
+        nama_user: String(row[2] || '').trim(),
+        role: String(row[4] || 'admin').trim(),
+      })).filter((u) => u.user);
+      return jsonResponse({ success: true, users });
+    }
+
+    if (action === 'addUser') {
+      const namaUser = normalizeFormValue(body.nama_user || '');
+      const user = normalizeFormValue(body.user || '');
+      const password = normalizeFormValue(body.password || '');
+      const role = normalizeFormValue(body.role || 'admin');
+
+      if (!namaUser || !user || !password) {
+        return jsonResponse({ success: false, message: 'Nama, username, dan password wajib diisi.' });
+      }
+
+      const validRoles = ['admin', 'guru_pembimbing'];
+      if (!validRoles.includes(role)) {
+        return jsonResponse({ success: false, message: 'Role tidak valid.' });
+      }
+
+      const ss = getSpreadsheet();
+      const sheet = ss.getSheetByName('AKUN');
+      if (!sheet) {
+        return jsonResponse({ success: false, message: 'Sheet AKUN tidak ditemukan.' });
+      }
+
+      const rows = sheet.getDataRange().getValues();
+      const duplicate = rows.slice(1).find((row) => String(row[1] || '').trim().toLowerCase() === user.toLowerCase());
+      if (duplicate) {
+        return jsonResponse({ success: false, message: 'Username sudah digunakan. Pilih username lain.' });
+      }
+
+      // Generate next ID
+      const ids = rows.slice(1).map((row) => parseInt(row[0], 10)).filter((n) => !isNaN(n));
+      const nextId = ids.length > 0 ? Math.max(...ids) + 1 : 1;
+
+      sheet.appendRow([String(nextId), user, namaUser, password, role]);
+      return jsonResponse({ success: true, message: 'User baru berhasil ditambahkan.' });
+    }
+
+    if (action === 'deleteUser') {
+      const userId = normalizeFormValue(body.user_id || '');
+      const requestingUser = normalizeFormValue(body.requesting_user || '');
+
+      if (!userId) {
+        return jsonResponse({ success: false, message: 'ID user tidak valid.' });
+      }
+
+      const ss = getSpreadsheet();
+      const sheet = ss.getSheetByName('AKUN');
+      if (!sheet) {
+        return jsonResponse({ success: false, message: 'Sheet AKUN tidak ditemukan.' });
+      }
+
+      const data = sheet.getDataRange().getValues();
+      let targetRow = -1;
+      let targetUsername = '';
+
+      for (let i = 1; i < data.length; i++) {
+        if (String(data[i][0] || '').trim() === userId) {
+          targetRow = i + 1;
+          targetUsername = String(data[i][1] || '').trim();
           break;
         }
       }
 
-      if (!deleted) {
-        return jsonResponse({ success: false, message: 'Data prestasi tidak ditemukan untuk dihapus.' });
+      if (targetRow === -1) {
+        return jsonResponse({ success: false, message: 'User tidak ditemukan.' });
       }
 
-      return jsonResponse({ success: true, message: 'Data prestasi berhasil dihapus.' });
+      if (targetUsername.toLowerCase() === requestingUser.toLowerCase()) {
+        return jsonResponse({ success: false, message: 'Tidak dapat menghapus akun yang sedang digunakan.' });
+      }
+
+      sheet.deleteRow(targetRow);
+      return jsonResponse({ success: true, message: 'User berhasil dihapus.' });
     }
 
     return jsonResponse({ success: false, message: 'Action tidak dikenal.' });

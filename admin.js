@@ -4,14 +4,28 @@ const STORAGE_KEY = 'prestasiAdminSession';
 
 const loginContainer = document.getElementById('loginContainer');
 const adminSection = document.getElementById('adminSection');
+const adminMain = document.getElementById('adminMain');
+const adminTopbar = document.getElementById('adminTopbar');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
 const usernameInput = document.getElementById('usernameInput');
 const passwordInput = document.getElementById('passwordInput');
+const togglePassword = document.getElementById('togglePassword');
+const eyeIcon = document.getElementById('eyeIcon');
+const eyeOffIcon = document.getElementById('eyeOffIcon');
 const logoutBtn = document.getElementById('logoutBtn');
 const adminUserBadge = document.getElementById('adminUserBadge');
+const logoutBtnAlt = document.getElementById('logoutBtnAlt');
+const adminUserBadgeDashboard = document.getElementById('adminUserBadgeDashboard');
+
+// Modal Elements
+const prestasiModal = document.getElementById('prestasiModal');
 const prestasiForm = document.getElementById('prestasiForm');
-const formStatus = document.getElementById('formStatus');
+const openAddModalBtn = document.getElementById('openAddModalBtn');
+const openAddModalBtnAlt = document.getElementById('openAddModalBtnAlt');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelModalBtn = document.getElementById('cancelModalBtn');
+
 const adminTableBody = document.getElementById('adminTableBody');
 const adminSummary = document.getElementById('adminSummary');
 const loadingOverlay = document.getElementById('loadingOverlay');
@@ -19,10 +33,119 @@ const namaSiswaSearch = document.getElementById('namaSiswaSearch');
 const studentPickerMenu = document.getElementById('studentPickerMenu');
 const nisInput = document.getElementById('nisInput');
 const nomorUrutInput = document.getElementById('nomorUrutInput');
-const cancelEditBtn = document.getElementById('cancelEditBtn');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+
+// User Management Elements
+const userModal = document.getElementById('userModal');
+const userForm = document.getElementById('userForm');
+const userTableBody = document.getElementById('userTableBody');
+const userSummary = document.getElementById('userSummary');
+const openAddUserModalBtn = document.getElementById('openAddUserModalBtn');
+const closeUserModalBtn = document.getElementById('closeUserModalBtn');
+const cancelUserModalBtn = document.getElementById('cancelUserModalBtn');
+const adminTabNav = document.getElementById('adminTabNav');
+const userSection = document.getElementById('userSection');
 
 let studentList = [];
 let currentEditRowId = null;
+let allUserData = [];
+
+/* ── Toast Notification Function ── */
+function showToast(message, type = 'success', title = '') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast--${type}`;
+
+  const defaultTitles = {
+    success: 'Berhasil',
+    error: 'Terjadi Kesalahan',
+    info: 'Informasi',
+    warning: 'Peringatan'
+  };
+
+  const icons = {
+    success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>',
+    error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+    warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+  };
+
+  toast.innerHTML = `
+    <div class="toast-icon-wrap" aria-hidden="true">${icons[type] || icons.info}</div>
+    <div class="toast-content">
+      <div class="toast-title">${title || defaultTitles[type] || 'Notifikasi'}</div>
+      <p class="toast-message">${message}</p>
+    </div>
+    <button type="button" class="toast-close" aria-label="Tutup notifikasi">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="toast-progress" aria-hidden="true"></div>
+  `;
+
+  const closeBtn = toast.querySelector('.toast-close');
+  const dismiss = () => {
+    if (toast.classList.contains('toast--closing')) return;
+    toast.classList.add('toast--closing');
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 260);
+  };
+
+  closeBtn.addEventListener('click', dismiss);
+  setTimeout(dismiss, 3500);
+
+  container.appendChild(toast);
+}
+
+/* ── Modal Control Functions ── */
+function openPrestasiModal(mode = 'add', rowData = null) {
+  if (!prestasiModal) return;
+
+  const formTitle = document.getElementById('formTitle');
+  const formModeBadge = document.getElementById('formModeBadge');
+  const submitBtnText = document.getElementById('submitBtnText');
+
+  if (mode === 'edit' && rowData) {
+    currentEditRowId = String(rowData.nomor_urut || rowData.no || '').trim();
+    populateFormFromRow(rowData);
+    if (formTitle) formTitle.textContent = 'Edit Data Prestasi';
+    if (formModeBadge) {
+      formModeBadge.textContent = 'Mode Edit';
+      formModeBadge.className = 'form-badge form-badge--edit';
+    }
+    if (submitBtnText) submitBtnText.textContent = 'Perbarui Data';
+  } else {
+    resetEditState();
+    if (formTitle) formTitle.textContent = 'Tambah Prestasi Baru';
+    if (formModeBadge) {
+      formModeBadge.textContent = 'Entri Baru';
+      formModeBadge.className = 'form-badge form-badge--new';
+    }
+    if (submitBtnText) submitBtnText.textContent = 'Simpan Prestasi';
+  }
+
+  prestasiModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closePrestasiModal() {
+  if (!prestasiModal) return;
+  prestasiModal.hidden = true;
+  document.body.style.overflow = '';
+  resetEditState();
+  if (prestasiForm) prestasiForm.reset();
+  if (nisInput) nisInput.value = '';
+  if (namaSiswaSearch) namaSiswaSearch.value = '';
+  if (studentPickerMenu) {
+    studentPickerMenu.hidden = true;
+    studentPickerMenu.innerHTML = '';
+  }
+  // Reset multi-student state
+  selectedStudents = [];
+  renderSelectedChips();
+}
 
 function showLoading(state) {
   if (!loadingOverlay) return;
@@ -35,55 +158,21 @@ function setSession(userData) {
   }
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-  adminUserBadge.textContent = userData.nama || userData.nama_user || userData.user || 'Admin';
+  const userName = userData.nama || userData.nama_user || userData.user || 'Admin';
+  if (adminUserBadge) adminUserBadge.textContent = userName;
+  if (adminUserBadgeDashboard) adminUserBadgeDashboard.textContent = userName;
 }
 
 function clearSession() {
   localStorage.removeItem(STORAGE_KEY);
-  if (adminUserBadge) {
-    adminUserBadge.textContent = 'Belum login';
-  }
-  if (logoutBtn) {
-    logoutBtn.hidden = true;
-  }
+  if (adminUserBadge) adminUserBadge.textContent = 'Belum login';
+  if (adminUserBadgeDashboard) adminUserBadgeDashboard.textContent = 'Belum login';
+  if (logoutBtn) logoutBtn.hidden = true;
+  if (logoutBtnAlt) logoutBtnAlt.hidden = true;
 }
 
 function initializeAdminState() {
-  const session = getSession();
-
-  if (session) {
-    if (adminUserBadge) {
-      adminUserBadge.textContent = session.nama || session.nama_user || session.user || 'Admin';
-    }
-    if (logoutBtn) {
-      logoutBtn.hidden = false;
-    }
-    if (loginContainer) {
-      loginContainer.hidden = true;
-      loginContainer.style.display = 'none';
-    }
-    if (adminSection) {
-      adminSection.hidden = false;
-      adminSection.style.display = 'block';
-    }
-  } else {
-    clearSession();
-    if (loginContainer) {
-      loginContainer.hidden = false;
-      loginContainer.style.display = 'block';
-    }
-    if (adminSection) {
-      adminSection.hidden = true;
-      adminSection.style.display = 'none';
-    }
-  }
-
-  if (adminTableBody) {
-    adminTableBody.innerHTML = '';
-  }
-  if (adminSummary) {
-    adminSummary.textContent = '0 data';
-  }
+  updateAuthView();
 }
 
 function getSession() {
@@ -171,6 +260,15 @@ function formatDateForDisplay(value) {
   return raw.replace(/\s+/g, ' ');
 }
 
+let allAdminPrestasiData = [];
+
+function levelBadgeClass(level) {
+  const text = String(level || '').toLowerCase();
+  if (text.includes('internasional')) return 'table-level-badge table-level-badge--intl';
+  if (text.includes('nasional')) return 'table-level-badge table-level-badge--nas';
+  return 'table-level-badge';
+}
+
 function renderAdminRows(rows) {
   adminTableBody.innerHTML = '';
 
@@ -178,7 +276,7 @@ function renderAdminRows(rows) {
     adminSummary.textContent = '0 data';
     adminTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">Belum ada data prestasi</td>
+        <td colspan="7" class="empty-state">Belum ada data prestasi yang sesuai.</td>
       </tr>
     `;
     return;
@@ -186,25 +284,33 @@ function renderAdminRows(rows) {
 
   adminSummary.textContent = `${rows.length} data`;
 
-  rows.slice(0, 20).forEach((row) => {
+  rows.forEach((row, index) => {
     const tr = document.createElement('tr');
     const rowId = row.nomor_urut || row.no || row.no_urut || '';
     const tanggalText = formatDateForDisplay(row.tanggal);
+    const tingkat = row.tingkat_lomba || '-';
+    const peringkat = row.peringkat || '-';
 
     tr.innerHTML = `
-      <td>${row.nomor_urut || row.no || row.no_urut || '-'}</td>
-      <td>${row.nama_siswa || '-'}</td>
-      <td>${row.nama_kegiatan || '-'}</td>
-      <td>${row.tingkat_lomba || '-'}</td>
-      <td>${row.peringkat || '-'}</td>
-      <td>${tanggalText}</td>
+      <td><strong>${index + 1}</strong></td>
+      <td>
+        <div style="font-weight: 700; color: #fff;">${row.nama_siswa || '-'}</div>
+        ${row.nis ? `<div style="font-size: 0.72rem; color: #94a3b8;">NIS: ${row.nis}</div>` : ''}
+      </td>
+      <td>
+        <div style="font-weight: 600;">${row.nama_kegiatan || '-'}</div>
+        ${row.penyelenggara ? `<div style="font-size: 0.72rem; color: #94a3b8;">${row.penyelenggara}</div>` : ''}
+      </td>
+      <td><span class="${levelBadgeClass(tingkat)}">${tingkat}</span></td>
+      <td>${peringkat !== '-' ? `<span class="table-rank-badge">${peringkat}</span>` : '-'}</td>
+      <td style="white-space: nowrap; color: #94a3b8; font-size: 0.78rem;">${tanggalText}</td>
       <td>
         <div class="table-actions">
-          <button type="button" class="table-action-btn edit-btn" data-row-id="${rowId}" aria-label="Edit prestasi" title="Edit">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm14.71-9.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <button type="button" class="table-action-btn edit-btn" data-row-id="${rowId}" aria-label="Edit prestasi" title="Edit Data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
           </button>
-          <button type="button" class="table-action-btn delete-btn" data-row-id="${rowId}" aria-label="Hapus prestasi" title="Hapus">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7zm3-3h6l1 2h3a1 1 0 0 1 0 2H5a1 1 0 1 1 0-2h3l1-2zm2 7.5v5h2v-5h-2zm-4 0v5h2v-5H7zm8 0v5h2v-5h-2z"/></svg>
+          <button type="button" class="table-action-btn delete-btn" data-row-id="${rowId}" aria-label="Hapus prestasi" title="Hapus Data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
           </button>
         </div>
       </td>
@@ -214,7 +320,7 @@ function renderAdminRows(rows) {
     const deleteBtn = tr.querySelector('.delete-btn');
 
     editBtn.addEventListener('click', () => openEditRow(row));
-    deleteBtn.addEventListener('click', () => deleteRowById(rowId));
+    deleteBtn.addEventListener('click', () => deleteRowById(row));
 
     adminTableBody.appendChild(tr);
   });
@@ -268,6 +374,47 @@ function isHeaderLike(value) {
   return ['no', 'nama_kegiatan', 'penyelenggara', 'nama_siswa', 'nis', 'tanggal', 'tempat_pelaksanaan', 'tingkat_lomba', 'peringkat', 'dokumen', 'foto', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(lowered);
 }
 
+/* ── Multi-Student Picker State ── */
+let selectedStudents = []; // [{ nama, nis }]
+
+function renderSelectedChips() {
+  const chipsContainer = document.getElementById('selectedStudentsChips');
+  const hiddenInput = document.getElementById('namaSiswaHiddenInput');
+  if (!chipsContainer) return;
+
+  chipsContainer.innerHTML = '';
+  chipsContainer.hidden = selectedStudents.length === 0;
+
+  selectedStudents.forEach((student, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'student-chip';
+    chip.innerHTML = `
+      <span class="student-chip-name">${student.nama}</span>
+      <span class="student-chip-nis">${student.nis}</span>
+      <button type="button" class="student-chip-remove" aria-label="Hapus ${student.nama}" data-idx="${idx}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    `;
+    chip.querySelector('.student-chip-remove').addEventListener('click', () => {
+      selectedStudents.splice(idx, 1);
+      renderSelectedChips();
+    });
+    chipsContainer.appendChild(chip);
+  });
+
+  // Update hidden inputs - store comma-separated for reference
+  if (hiddenInput) hiddenInput.value = selectedStudents.map((s) => s.nama).join(', ');
+  // Sync nisInput to show all NIS (or first for edit compat)
+  if (nisInput) nisInput.value = selectedStudents.map((s) => s.nis).join(', ');
+}
+
+function addStudentToSelection(nama, nis) {
+  const already = selectedStudents.find((s) => s.nis === nis || s.nama.toLowerCase() === nama.toLowerCase());
+  if (already) return; // avoid duplicates
+  selectedStudents.push({ nama, nis });
+  renderSelectedChips();
+}
+
 function renderStudentOptions(filterText = '') {
   if (!studentPickerMenu || !namaSiswaSearch) return;
 
@@ -283,9 +430,8 @@ function renderStudentOptions(filterText = '') {
     const nis = String(student.nis || '').trim().toLowerCase();
     const kelas = String(student.kelas || '').trim().toLowerCase();
     return name.includes(term) || nis.includes(term) || kelas.includes(term);
-  });
+  }).slice(0, 30); // max 30 results
 
-  const currentValue = namaSiswaSearch.value;
   studentPickerMenu.innerHTML = '';
 
   if (!filteredStudents.length) {
@@ -301,56 +447,94 @@ function renderStudentOptions(filterText = '') {
     const nama = String(student.nama || '').trim() || 'Nama tidak tersedia';
     const nis = String(student.nis || '').trim();
     const kelas = String(student.kelas || '').trim();
+    const alreadySelected = selectedStudents.some((s) => s.nis === nis || s.nama.toLowerCase() === nama.toLowerCase());
 
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'student-suggestion-item';
+    item.className = 'student-suggestion-item' + (alreadySelected ? ' student-suggestion-item--selected' : '');
     item.innerHTML = `
       <span class="student-suggestion-name">${nama}</span>
-      <span class="student-suggestion-meta">${kelas || 'Tanpa kelas'}${nis ? ` - ${nis}` : ''}</span>
+      <span class="student-suggestion-meta">${kelas || 'Tanpa kelas'}${nis ? ` • ${nis}` : ''}</span>
+      ${alreadySelected ? '<span class="student-suggestion-check">&#10003;</span>' : ''}
     `;
 
-    item.addEventListener('click', () => {
-      namaSiswaSearch.value = nama;
-      nisInput.value = nis;
+    // Use mousedown instead of click to fire before blur
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // prevent input blur
+      if (alreadySelected) {
+        // deselect
+        const idx = selectedStudents.findIndex((s) => s.nis === nis || s.nama.toLowerCase() === nama.toLowerCase());
+        if (idx !== -1) selectedStudents.splice(idx, 1);
+        renderSelectedChips();
+      } else {
+        addStudentToSelection(nama, nis);
+      }
+      namaSiswaSearch.value = '';
       studentPickerMenu.hidden = true;
+      studentPickerMenu.innerHTML = '';
+      namaSiswaSearch.focus();
     });
 
     studentPickerMenu.appendChild(item);
   });
 
   studentPickerMenu.hidden = false;
+}
 
-  if (currentValue) {
-    const selected = filteredStudents.find((student) => String(student.nama || '').trim().toLowerCase() === currentValue.trim().toLowerCase());
-    if (selected) {
-      nisInput.value = String(selected.nis || '').trim();
+function parseCSV(text) {
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const parseLine = (line) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
     }
-  }
+    result.push(current.trim());
+    return result;
+  };
+
+  const headers = parseLine(lines[0]).map(h => normalizeKey(h));
+  return lines.slice(1).map(line => {
+    const values = parseLine(line);
+    const row = {};
+    headers.forEach((header, idx) => {
+      row[header] = values[idx] || '';
+    });
+    return row;
+  });
 }
 
 async function fetchStudentList() {
   try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('DATASISWA')}`);
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/export?format=csv&sheet=${encodeURIComponent('DATASISWA')}&_=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error('Gagal memuat data siswa');
     }
 
     const text = await response.text();
-    const { rows } = parseGvizResponse(text);
+    const rows = parseCSV(text);
 
     studentList = rows
-      .map((item) => {
-        const values = item && Array.isArray(item.c) ? item.c : [];
-        const nis = String(getCellValue(values[0]) || '').trim();
-        const nama = String(getCellValue(values[1]) || '').trim();
-        const kelas = String(getCellValue(values[2]) || '').trim();
-        const jenisKelamin = String(getCellValue(values[3]) || '').trim();
+      .map((row) => {
+        const nis = String(row.nis || '').trim();
+        const nama = String(row.nama_peserta_didik || '').trim();
+        const kelas = String(row.kelas || '').trim();
+        const jenisKelamin = String(row.jenis_kelamin || '').trim();
 
-        const hasValidNis = /^\d{8,}$/.test(nis.replace(/\s+/g, ''));
         const isHeader = ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nis.toLowerCase()) || ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nama.toLowerCase());
 
-        if (!nama || !hasValidNis || isHeader) {
+        if (!nama || !nis || isHeader) {
           return null;
         }
 
@@ -376,7 +560,7 @@ async function fetchStudentList() {
 async function fetchPrestasiData() {
   showLoading(true);
   try {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('PRESTASI')}`);
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${PUBLIC_SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent('PRESTASI')}&_=${Date.now()}`, { cache: 'no-store' });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -386,14 +570,15 @@ async function fetchPrestasiData() {
     const headers = cols.map((col) => String(col.label || col.id || ''));
 
     const data = rows
-      .map((item) => {
+      .map((item, index) => {
         const values = item.c || [];
         const row = {};
-        headers.forEach((header, index) => {
-          row[normalizeKey(header)] = getCellValue(values[index]);
+        headers.forEach((header, idx) => {
+          row[normalizeKey(header)] = getCellValue(values[idx]);
         });
 
-        const nomorUrut = String(pickValue(row, ['nomor_urut', 'no', 'no_urut']) || '').trim();
+        const nomorUrutVal = String(pickValue(row, ['nomor_urut', 'no', 'no_urut']) || '').trim();
+        const nomorUrut = nomorUrutVal || String(index + 2);
         const nis = String(pickValue(row, ['nis', 'nis_siswa', 'nomor_induk', 'nomor_induk_siswa']) || '').trim();
         const namaSiswa = String(pickValue(row, ['nama_siswa', 'nama_peserta_didik', 'nama']) || '').trim();
         const namaKegiatan = String(pickValue(row, ['nama_kegiatan', 'kegiatan']) || '').trim();
@@ -402,6 +587,8 @@ async function fetchPrestasiData() {
         const tanggal = String(pickValue(row, ['tanggal', 'tgl', 'tanggal_lomba', 'tanggal_pelaksanaan']) || '').trim();
         const penyelenggara = String(pickValue(row, ['penyelenggara']) || '').trim();
         const tempat = String(pickValue(row, ['tempat', 'tempat_pelaksanaan', 'tempat_lomba']) || '').trim();
+        const foto = String(pickValue(row, ['foto', 'foto_kegiatan']) || '').trim();
+        const dokumen = String(pickValue(row, ['dokumen', 'dokumen_pendukung']) || '').trim();
 
         if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal && !penyelenggara && !tempat && !nis) {
           return null;
@@ -417,17 +604,29 @@ async function fetchPrestasiData() {
           peringkat,
           tanggal,
           tempat,
+          foto,
+          dokumen,
         };
       })
       .filter(Boolean);
 
-    renderAdminRows(data);
+    allAdminPrestasiData = data;
+    if (adminSearchInput && adminSearchInput.value.trim()) {
+      const term = adminSearchInput.value.trim().toLowerCase();
+      const filtered = allAdminPrestasiData.filter((row) => {
+        const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
+        return combined.includes(term);
+      });
+      renderAdminRows(filtered);
+    } else {
+      renderAdminRows(data);
+    }
   } catch (error) {
     console.error('Gagal memuat data prestasi:', error);
     if (adminTableBody) {
       adminTableBody.innerHTML = `
         <tr>
-          <td colspan="5" class="empty-state">Gagal memuat data. Periksa koneksi atau sheet publik.</td>
+          <td colspan="7" class="empty-state">Gagal memuat data. Periksa koneksi atau sheet publik.</td>
         </tr>
       `;
     }
@@ -457,7 +656,7 @@ async function loginUser(username, password) {
       result = JSON.parse(text);
     } catch (parseError) {
       console.error('Login response bukan JSON:', text.slice(0, 300));
-      throw new Error('Endpoint login tidak mengembalikan JSON. Pastikan Apps Script sudah dideploy sebagai Web App dan URL yang dipakai benar.');
+      throw new Error('Endpoint login tidak mengembalikan JSON. Pastikan Apps Script sudah dideploy sebagai Web App.');
     }
 
     if (!response.ok || !result.success) {
@@ -467,24 +666,44 @@ async function loginUser(username, password) {
     setSession(result.user || { user: username, nama: username });
     loginForm.reset();
     loginError.textContent = '';
+    showToast('Selamat datang kembali, ' + (result.user?.nama || username) + '!', 'success', 'Login Berhasil');
     return true;
   } catch (error) {
-    loginError.textContent = error.message || 'Gagal login';
+    const errMsg = error.message || 'Gagal login';
+    loginError.textContent = errMsg;
+    showToast(errMsg, 'error', 'Login Gagal');
     clearSession();
     return false;
   } finally {
     showLoading(false);
+    if (loginSubmitBtn) {
+      loginSubmitBtn.disabled = false;
+      loginSubmitBtn.classList.remove('loading');
+      const span = loginSubmitBtn.querySelector('span');
+      if (span) span.textContent = 'Masuk';
+    }
   }
 }
 
 function resetEditState() {
   currentEditRowId = null;
   if (nomorUrutInput) nomorUrutInput.value = '';
-  if (cancelEditBtn) cancelEditBtn.hidden = true;
-  const submitButton = prestasiForm?.querySelector('button[type="submit"]');
-  if (submitButton) {
-    submitButton.textContent = 'Simpan Prestasi';
+
+  const formTitle = document.getElementById('formTitle');
+  const formModeBadge = document.getElementById('formModeBadge');
+  const submitBtnText = document.getElementById('submitBtnText');
+  const fotoFileLabel = document.getElementById('fotoFileLabel');
+  const dokumenFileLabel = document.getElementById('dokumenFileLabel');
+
+  if (formTitle) formTitle.textContent = 'Tambah Prestasi Baru';
+  if (formModeBadge) {
+    formModeBadge.textContent = 'Entri Baru';
+    formModeBadge.className = 'form-badge form-badge--new';
   }
+  if (submitBtnText) submitBtnText.textContent = 'Simpan Prestasi';
+
+  if (fotoFileLabel) fotoFileLabel.textContent = 'Pilih Foto Kegiatan';
+  if (dokumenFileLabel) dokumenFileLabel.textContent = 'Pilih Dokumen / Sertifikat';
 }
 
 function populateFormFromRow(row) {
@@ -497,8 +716,6 @@ function populateFormFromRow(row) {
     tempat: row.tempat || '',
     tingkat_lomba: row.tingkat_lomba || 'Kabupaten',
     peringkat: row.peringkat || '',
-    nis: row.nis || row.nis_siswa || '',
-    nama_siswa: row.nama_siswa || '',
     nomor_urut: row.nomor_urut || '',
   };
 
@@ -509,25 +726,25 @@ function populateFormFromRow(row) {
     }
   });
 
-  if (nisInput) nisInput.value = String(row.nis || '').trim();
-  if (namaSiswaSearch) namaSiswaSearch.value = String(row.nama_siswa || '').trim();
   if (nomorUrutInput) nomorUrutInput.value = String(row.nomor_urut || '').trim();
+
+  // Populate single student in edit mode
+  selectedStudents = [];
+  const nama = String(row.nama_siswa || '').trim();
+  const nis = String(row.nis || '').trim();
+  if (nama) selectedStudents.push({ nama, nis });
+  renderSelectedChips();
+  if (namaSiswaSearch) namaSiswaSearch.value = '';
 }
 
 function openEditRow(row) {
   if (!row) return;
-  currentEditRowId = String(row.nomor_urut || '').trim();
-  populateFormFromRow(row);
-  formStatus.textContent = 'Mode edit aktif. Ubah data lalu simpan.';
-
-  if (cancelEditBtn) cancelEditBtn.hidden = false;
-  const submitButton = prestasiForm?.querySelector('button[type="submit"]');
-  if (submitButton) {
-    submitButton.textContent = 'Update Prestasi';
-  }
+  openPrestasiModal('edit', row);
 }
 
-async function deleteRowById(rowId) {
+async function deleteRowById(row) {
+  if (!row) return;
+  const rowId = row.nomor_urut || '';
   if (!rowId) return;
 
   const confirmed = window.confirm('Apakah Anda yakin ingin menghapus data prestasi ini?');
@@ -535,12 +752,21 @@ async function deleteRowById(rowId) {
 
   showLoading(true);
   try {
+    const params = new URLSearchParams({
+      action: 'deletePrestasi',
+      nomor_urut: String(rowId),
+      nama_siswa: String(row.nama_siswa || ''),
+      nis: String(row.nis || ''),
+      nama_kegiatan: String(row.nama_kegiatan || ''),
+      tanggal: String(row.tanggal || '')
+    });
+
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
       },
-      body: new URLSearchParams({ action: 'deletePrestasi', nomor_urut: String(rowId) }).toString()
+      body: params.toString()
     });
 
     const text = await response.text();
@@ -555,11 +781,12 @@ async function deleteRowById(rowId) {
       throw new Error(result.message || 'Gagal menghapus data');
     }
 
-    formStatus.textContent = 'Data prestasi berhasil dihapus.';
+    showToast('Data prestasi berhasil dihapus dari database.', 'success', 'Data Dihapus');
     resetEditState();
     await fetchPrestasiData();
   } catch (error) {
-    formStatus.textContent = error.message || 'Gagal menghapus data.';
+    const errMsg = error.message || 'Gagal menghapus data.';
+    showToast(errMsg, 'error', 'Gagal Menghapus');
   } finally {
     showLoading(false);
   }
@@ -623,24 +850,18 @@ async function submitPrestasi(payload, actionName = 'addPrestasi') {
       throw new Error(result.message || 'Gagal menyimpan data');
     }
 
-    formStatus.textContent = actionName === 'updatePrestasi'
-      ? 'Prestasi berhasil diperbarui.'
-      : 'Prestasi berhasil disimpan.';
+    const msg = actionName === 'updatePrestasi'
+      ? 'Perubahan data prestasi berhasil disimpan.'
+      : 'Prestasi siswa baru berhasil ditambahkan!';
+    const toastTitle = actionName === 'updatePrestasi' ? 'Prestasi Diperbarui' : 'Prestasi Disimpan';
 
-    prestasiForm.reset();
-    resetEditState();
-    if (nisInput) nisInput.value = '';
-    if (namaSiswaSearch) {
-      namaSiswaSearch.value = '';
-      if (studentPickerMenu) {
-        studentPickerMenu.hidden = true;
-      }
-      renderStudentOptions();
-    }
+    showToast(msg, 'success', toastTitle);
+    closePrestasiModal();
     await fetchPrestasiData();
     return true;
   } catch (error) {
-    formStatus.textContent = error.message || 'Gagal menyimpan prestasi.';
+    const errMsg = error.message || 'Gagal menyimpan prestasi.';
+    showToast(errMsg, 'error', 'Gagal Menyimpan');
     return false;
   } finally {
     showLoading(false);
@@ -653,37 +874,252 @@ function updateAuthView() {
 
   if (!isLoggedIn) {
     clearSession();
-    loginContainer.hidden = false;
-    adminSection.hidden = true;
-    adminTableBody.innerHTML = '';
-    adminSummary.textContent = '0 data';
+    closePrestasiModal();
+    // Show full-screen login
+    if (loginContainer) loginContainer.hidden = false;
+    if (adminMain) adminMain.hidden = true;
+    if (adminTopbar) adminTopbar.hidden = true;
+    if (adminSection) adminSection.hidden = true;
+    if (adminTableBody) adminTableBody.innerHTML = '';
+    if (adminSummary) adminSummary.textContent = '0 data';
     return;
   }
 
-  loginContainer.hidden = true;
-  adminSection.hidden = false;
-  logoutBtn.hidden = false;
-  adminUserBadge.textContent = session.nama || session.nama_user || session.user || 'Admin';
+  // Logged in — hide login screen, show dashboard
+  if (loginContainer) loginContainer.hidden = true;
+  if (adminMain) adminMain.hidden = false;
+  if (adminTopbar) adminTopbar.hidden = false;
+  if (adminSection) adminSection.hidden = false;
+  if (logoutBtn) logoutBtn.hidden = false;
+  if (logoutBtnAlt) logoutBtnAlt.hidden = false;
+
+  const userName = session.nama || session.nama_user || session.user || 'Admin';
+  if (adminUserBadge) adminUserBadge.textContent = userName;
+  if (adminUserBadgeDashboard) adminUserBadgeDashboard.textContent = userName;
+
   fetchStudentList();
   fetchPrestasiData();
+
+  // Show tab nav only for admin role
+  if (session.role === 'admin') {
+    if (adminTabNav) adminTabNav.hidden = false;
+  } else {
+    if (adminTabNav) adminTabNav.hidden = true;
+    if (userSection) userSection.hidden = true;
+  }
 }
 
+/* ── Tab Switching ── */
+function showTab(tabName) {
+  const session = getSession();
+  if (tabName === 'users' && (!session || session.role !== 'admin')) return;
+
+  const allTabBtns = document.querySelectorAll('.admin-tab-btn');
+  allTabBtns.forEach((btn) => {
+    if (btn.dataset.tab === tabName) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (adminSection) adminSection.hidden = (tabName !== 'prestasi');
+  if (userSection) userSection.hidden = (tabName !== 'users');
+
+  if (tabName === 'users') {
+    fetchUsers();
+  }
+}
+
+if (adminTabNav) {
+  adminTabNav.addEventListener('click', (e) => {
+    const btn = e.target.closest('.admin-tab-btn');
+    if (btn && btn.dataset.tab) {
+      showTab(btn.dataset.tab);
+    }
+  });
+}
+
+/* ── User Management Functions ── */
+function roleLabel(role) {
+  if (role === 'admin') return '<span class="table-level-badge table-level-badge--nas">Admin</span>';
+  if (role === 'guru_pembimbing') return '<span class="table-level-badge">Guru Pembimbing</span>';
+  return `<span class="table-level-badge">${role}</span>`;
+}
+
+function renderUserRows(users) {
+  if (!userTableBody) return;
+  userTableBody.innerHTML = '';
+
+  if (!users || users.length === 0) {
+    if (userSummary) userSummary.textContent = '0 user';
+    userTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">Belum ada pengguna terdaftar.</td></tr>';
+    return;
+  }
+
+  if (userSummary) userSummary.textContent = `${users.length} user`;
+  const session = getSession();
+
+  users.forEach((user, index) => {
+    const tr = document.createElement('tr');
+    const isSelf = session && String(user.user).toLowerCase() === String(session.user || '').toLowerCase();
+    tr.innerHTML = `
+      <td><strong>${index + 1}</strong></td>
+      <td><div style="font-weight: 700; color: #fff;">${user.nama_user || '-'}</div></td>
+      <td><div style="color: #94a3b8; font-size: 0.85rem;">${user.user || '-'}</div></td>
+      <td>${roleLabel(user.role)}</td>
+      <td>
+        <div class="table-actions">
+          <button type="button" class="table-action-btn delete-btn"
+            data-user-id="${user.id}"
+            aria-label="Hapus user" title="${isSelf ? 'Tidak bisa menghapus akun sendiri' : 'Hapus User'}"
+            ${isSelf ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </td>
+    `;
+
+    if (!isSelf) {
+      const deleteBtn = tr.querySelector('.delete-btn');
+      deleteBtn.addEventListener('click', () => deleteUserById(user.id, user.nama_user));
+    }
+
+    userTableBody.appendChild(tr);
+  });
+}
+
+async function fetchUsers() {
+  showLoading(true);
+  try {
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ action: 'getUsers' }).toString()
+    });
+    const text = await response.text();
+    const result = JSON.parse(text);
+    if (!result.success) throw new Error(result.message);
+    allUserData = result.users || [];
+    renderUserRows(allUserData);
+  } catch (error) {
+    showToast(error.message || 'Gagal memuat data user.', 'error', 'Gagal Memuat');
+    if (userTableBody) userTableBody.innerHTML = '<tr><td colspan="5" class="empty-state">Gagal memuat data pengguna.</td></tr>';
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function deleteUserById(userId, namaUser) {
+  if (!userId) return;
+  const confirmed = window.confirm(`Hapus pengguna "${namaUser}"? Tindakan ini tidak dapat dibatalkan.`);
+  if (!confirmed) return;
+
+  const session = getSession();
+  showLoading(true);
+  try {
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        action: 'deleteUser',
+        user_id: String(userId),
+        requesting_user: String(session?.user || '')
+      }).toString()
+    });
+    const result = JSON.parse(await response.text());
+    if (!result.success) throw new Error(result.message);
+    showToast('Pengguna berhasil dihapus.', 'success', 'User Dihapus');
+    await fetchUsers();
+  } catch (error) {
+    showToast(error.message || 'Gagal menghapus user.', 'error', 'Gagal Hapus');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function openUserModal() {
+  if (!userModal) return;
+  if (userForm) userForm.reset();
+  userModal.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeUserModal() {
+  if (!userModal) return;
+  userModal.hidden = true;
+  document.body.style.overflow = '';
+  if (userForm) userForm.reset();
+}
+
+if (openAddUserModalBtn) openAddUserModalBtn.addEventListener('click', openUserModal);
+if (closeUserModalBtn) closeUserModalBtn.addEventListener('click', closeUserModal);
+if (cancelUserModalBtn) cancelUserModalBtn.addEventListener('click', closeUserModal);
+
+if (userModal) {
+  userModal.addEventListener('click', (e) => {
+    if (e.target === userModal) closeUserModal();
+  });
+}
+
+if (userForm) {
+  userForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const fd = new FormData(userForm);
+    const nama_user = String(fd.get('nama_user') || '').trim();
+    const user = String(fd.get('user') || '').trim();
+    const password = String(fd.get('password') || '').trim();
+    const confirm_password = String(fd.get('confirm_password') || '').trim();
+    const role = String(fd.get('role') || 'guru_pembimbing').trim();
+
+    if (!nama_user || !user || !password) {
+      showToast('Harap lengkapi semua field yang wajib diisi.', 'warning', 'Form Belum Lengkap');
+      return;
+    }
+    if (password.length < 6) {
+      showToast('Password minimal 6 karakter.', 'warning', 'Password Lemah');
+      return;
+    }
+    if (password !== confirm_password) {
+      showToast('Password dan konfirmasi password tidak cocok.', 'warning', 'Password Tidak Cocok');
+      return;
+    }
+
+    const submitBtn = document.getElementById('submitUserBtn');
+    const submitBtnText = document.getElementById('submitUserBtnText');
+    if (submitBtn) { submitBtn.disabled = true; }
+    if (submitBtnText) submitBtnText.textContent = 'Menyimpan...';
+
+    showLoading(true);
+    try {
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ action: 'addUser', nama_user, user, password, role }).toString()
+      });
+      const result = JSON.parse(await response.text());
+      if (!result.success) throw new Error(result.message);
+      showToast('Pengguna baru berhasil ditambahkan!', 'success', 'User Ditambahkan');
+      closeUserModal();
+      await fetchUsers();
+    } catch (error) {
+      showToast(error.message || 'Gagal menambah user.', 'error', 'Gagal Menyimpan');
+    } finally {
+      showLoading(false);
+      if (submitBtn) { submitBtn.disabled = false; }
+      if (submitBtnText) submitBtnText.textContent = 'Simpan User';
+    }
+  });
+}
+
+// Student picker listeners
 if (namaSiswaSearch) {
   if (studentPickerMenu) {
     studentPickerMenu.hidden = true;
   }
 
   namaSiswaSearch.addEventListener('input', (event) => {
-    const value = event.target.value.trim();
-    const chosen = studentList.find((student) => String(student.nama || '').trim().toLowerCase() === value.toLowerCase());
-
-    if (chosen) {
-      nisInput.value = String(chosen.nis || '').trim();
-    } else if (!value) {
-      nisInput.value = '';
-    }
-
-    renderStudentOptions(value);
+    renderStudentOptions(event.target.value.trim());
   });
 
   namaSiswaSearch.addEventListener('focus', () => {
@@ -691,24 +1127,27 @@ if (namaSiswaSearch) {
     if (value) {
       renderStudentOptions(value);
     } else {
-      studentPickerMenu.hidden = true;
-      studentPickerMenu.innerHTML = '';
+      if (studentPickerMenu) {
+        studentPickerMenu.hidden = true;
+        studentPickerMenu.innerHTML = '';
+      }
     }
+  });
+
+  namaSiswaSearch.addEventListener('blur', () => {
+    // Small delay so mousedown on a suggestion can fire first
+    setTimeout(() => {
+      if (studentPickerMenu) {
+        studentPickerMenu.hidden = true;
+      }
+    }, 150);
   });
 
   namaSiswaSearch.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && studentPickerMenu) {
       studentPickerMenu.hidden = true;
       studentPickerMenu.innerHTML = '';
-    }
-  });
-
-  namaSiswaSearch.addEventListener('change', (event) => {
-    const chosen = studentList.find((student) => String(student.nama || '').trim().toLowerCase() === event.target.value.trim().toLowerCase());
-    nisInput.value = chosen ? String(chosen.nis || '').trim() : '';
-    if (studentPickerMenu) {
-      studentPickerMenu.hidden = true;
-      studentPickerMenu.innerHTML = '';
+      namaSiswaSearch.value = '';
     }
   });
 }
@@ -716,90 +1155,232 @@ if (namaSiswaSearch) {
 if (studentPickerMenu) {
   document.addEventListener('click', (event) => {
     const isInsidePicker = event.target.closest('.student-picker');
-    if (!isInsidePicker && !event.target.closest('.student-suggestion-item')) {
+    if (!isInsidePicker) {
       studentPickerMenu.hidden = true;
       studentPickerMenu.innerHTML = '';
     }
   });
 }
 
-loginForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const username = usernameInput.value.trim();
-  const password = passwordInput.value.trim();
-
-  if (!username || !password) {
-    loginError.textContent = 'Username dan password harus diisi';
-    return;
-  }
-
-  const success = await loginUser(username, password);
-  if (success) {
-    updateAuthView();
-  }
-});
-
-logoutBtn.addEventListener('click', () => {
-  clearSession();
-  resetEditState();
-  updateAuthView();
-  loginError.textContent = '';
-  formStatus.textContent = '';
-  loginForm.reset();
-});
-
-if (cancelEditBtn) {
-  cancelEditBtn.addEventListener('click', () => {
-    prestasiForm.reset();
-    resetEditState();
-    formStatus.textContent = 'Edit dibatalkan.';
-    if (nisInput) nisInput.value = '';
-    if (namaSiswaSearch) namaSiswaSearch.value = '';
+// Modal open buttons
+if (openAddModalBtn) {
+  openAddModalBtn.addEventListener('click', () => {
+    openPrestasiModal('add');
   });
 }
 
-prestasiForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
+if (openAddModalBtnAlt) {
+  openAddModalBtnAlt.addEventListener('click', () => {
+    openPrestasiModal('add');
+  });
+}
 
-  const session = getSession();
-  if (!session) {
-    formStatus.textContent = 'Silakan login dulu.';
-    return;
+// Modal close buttons
+if (closeModalBtn) {
+  closeModalBtn.addEventListener('click', closePrestasiModal);
+}
+
+if (cancelModalBtn) {
+  cancelModalBtn.addEventListener('click', closePrestasiModal);
+}
+
+// Close modal on click outside (backdrop)
+if (prestasiModal) {
+  prestasiModal.addEventListener('click', (e) => {
+    if (e.target === prestasiModal) {
+      closePrestasiModal();
+    }
+  });
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && prestasiModal && !prestasiModal.hidden) {
+    closePrestasiModal();
   }
-
-  const formData = new FormData(prestasiForm);
-  const payload = {
-    nomor_urut: String(formData.get('nomor_urut') || currentEditRowId || '').trim(),
-    nama_kegiatan: String(document.querySelector('[name="nama_kegiatan"]')?.value ?? formData.get('nama_kegiatan') ?? '').trim(),
-    penyelenggara: String(document.querySelector('[name="penyelenggara"]')?.value ?? formData.get('penyelenggara') ?? '').trim(),
-    nis: String((nisInput && nisInput.value) ?? formData.get('nis') ?? '').trim(),
-    nama_siswa: String((namaSiswaSearch && namaSiswaSearch.value) ?? formData.get('nama_siswa') ?? '').trim(),
-    tanggal: String(document.querySelector('[name="tanggal"]')?.value ?? formData.get('tanggal') ?? '').trim(),
-    tempat: String(document.querySelector('[name="tempat"]')?.value ?? formData.get('tempat') ?? '').trim(),
-    tingkat_lomba: String(document.querySelector('[name="tingkat_lomba"]')?.value ?? formData.get('tingkat_lomba') ?? '').trim(),
-    peringkat: String(document.querySelector('[name="peringkat"]')?.value ?? formData.get('peringkat') ?? '').trim(),
-    user: session.user || 'admin',
-    fotoFile: formData.get('fotoFile'),
-    dokumenFile: formData.get('dokumenFile'),
-  };
-
-  const requiredFields = ['nama_kegiatan', 'penyelenggara', 'nis', 'nama_siswa'];
-  const missingFields = requiredFields.filter((field) => !String(payload[field] || '').trim());
-
-  if (missingFields.length) {
-    formStatus.textContent = `Kolom ${missingFields.join(', ')} wajib diisi.`;
-    return;
-  }
-
-  const actionName = currentEditRowId ? 'updatePrestasi' : 'addPrestasi';
-  await submitPrestasi(payload, actionName);
 });
 
-initializeAdminState();
+// Login Form Submit
+if (loginForm) {
+  loginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+
+    if (!username || !password) {
+      loginError.textContent = 'Username dan password harus diisi';
+      showToast('Username dan password harus diisi', 'warning', 'Form Belum Lengkap');
+      return;
+    }
+
+    const success = await loginUser(username, password);
+    if (success) {
+      updateAuthView();
+    }
+  });
+}
+
+function handleLogout() {
+  clearSession();
+  resetEditState();
+  updateAuthView();
+  if (loginError) loginError.textContent = '';
+  if (loginForm) loginForm.reset();
+  showToast('Anda telah berhasil keluar dari sesi admin.', 'info', 'Logout Berhasil');
+}
+
+if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+if (logoutBtnAlt) logoutBtnAlt.addEventListener('click', handleLogout);
+
+// Form Submit (Tambah & Edit Prestasi)
+if (prestasiForm) {
+  prestasiForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const session = getSession();
+    if (!session) {
+      showToast('Sesi habis. Silakan login kembali.', 'warning', 'Perhatian');
+      return;
+    }
+
+    const formData = new FormData(prestasiForm);
+    const basePayload = {
+      nomor_urut: String(formData.get('nomor_urut') || currentEditRowId || '').trim(),
+      nama_kegiatan: String(document.querySelector('[name="nama_kegiatan"]')?.value ?? formData.get('nama_kegiatan') ?? '').trim(),
+      penyelenggara: String(document.querySelector('[name="penyelenggara"]')?.value ?? formData.get('penyelenggara') ?? '').trim(),
+      tanggal: String(document.querySelector('[name="tanggal"]')?.value ?? formData.get('tanggal') ?? '').trim(),
+      tempat: String(document.querySelector('[name="tempat"]')?.value ?? formData.get('tempat') ?? '').trim(),
+      tingkat_lomba: String(document.querySelector('[name="tingkat_lomba"]')?.value ?? formData.get('tingkat_lomba') ?? '').trim(),
+      peringkat: String(document.querySelector('[name="peringkat"]')?.value ?? formData.get('peringkat') ?? '').trim(),
+      user: session.user || 'admin',
+      fotoFile: formData.get('fotoFile'),
+      dokumenFile: formData.get('dokumenFile'),
+    };
+
+    // Validate base fields
+    const baseRequired = [
+      { key: 'nama_kegiatan', label: 'Nama Kegiatan' },
+      { key: 'penyelenggara', label: 'Penyelenggara' },
+      { key: 'tanggal', label: 'Tanggal Pelaksanaan' },
+    ];
+    const missingBase = baseRequired.filter((f) => !String(basePayload[f.key] || '').trim());
+    if (missingBase.length) {
+      showToast(`Harap lengkapi: ${missingBase.map((f) => f.label).join(', ')}`, 'warning', 'Form Belum Lengkap');
+      return;
+    }
+
+    if (selectedStudents.length === 0) {
+      showToast('Harap pilih minimal satu siswa.', 'warning', 'Siswa Belum Dipilih');
+      return;
+    }
+
+    const actionName = currentEditRowId ? 'updatePrestasi' : 'addPrestasi';
+
+    if (actionName === 'updatePrestasi') {
+      // Edit mode: always single student
+      const student = selectedStudents[0];
+      const payload = { ...basePayload, nama_siswa: student.nama, nis: student.nis };
+      await submitPrestasi(payload, 'updatePrestasi');
+      return;
+    }
+
+    // Add mode: submit one row per selected student
+    showLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const student of selectedStudents) {
+      const payload = { ...basePayload, nama_siswa: student.nama, nis: student.nis };
+      const ok = await submitPrestasi(payload, 'addPrestasi');
+      if (ok) successCount++; else failCount++;
+    }
+    showLoading(false);
+
+    if (successCount > 0) {
+      const msg = selectedStudents.length > 1
+        ? `${successCount} dari ${selectedStudents.length} data prestasi berhasil disimpan.`
+        : 'Prestasi siswa berhasil ditambahkan!';
+      showToast(msg, 'success', 'Prestasi Disimpan');
+      closePrestasiModal();
+      await fetchPrestasiData();
+    }
+    if (failCount > 0) {
+      showToast(`${failCount} data gagal disimpan.`, 'error', 'Sebagian Gagal');
+    }
+  });
+}
+
+// Password show/hide toggle
+if (togglePassword && passwordInput) {
+  togglePassword.addEventListener('click', () => {
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    if (eyeIcon) eyeIcon.hidden = isPassword;
+    if (eyeOffIcon) eyeOffIcon.hidden = !isPassword;
+    togglePassword.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+  });
+}
+
+// Login submit button loading state
+if (loginForm) {
+  loginForm.addEventListener('submit', () => {
+    if (loginSubmitBtn) {
+      loginSubmitBtn.disabled = true;
+      loginSubmitBtn.classList.add('loading');
+      const span = loginSubmitBtn.querySelector('span');
+      if (span) span.textContent = 'Memproses...';
+    }
+  });
+}
+
+// File upload preview label listeners
+const fotoFileInput = document.getElementById('fotoFileInput');
+const dokumenFileInput = document.getElementById('dokumenFileInput');
+const fotoFileLabel = document.getElementById('fotoFileLabel');
+const dokumenFileLabel = document.getElementById('dokumenFileLabel');
+
+if (fotoFileInput && fotoFileLabel) {
+  fotoFileInput.addEventListener('change', () => {
+    const file = fotoFileInput.files && fotoFileInput.files[0];
+    fotoFileLabel.textContent = file ? file.name : 'Pilih Foto Kegiatan';
+  });
+}
+
+if (dokumenFileInput && dokumenFileLabel) {
+  dokumenFileInput.addEventListener('change', () => {
+    const file = dokumenFileInput.files && dokumenFileInput.files[0];
+    dokumenFileLabel.textContent = file ? file.name : 'Pilih Dokumen / Sertifikat';
+  });
+}
+
+// Admin table search filter
+const adminSearchInput = document.getElementById('adminSearchInput');
+if (adminSearchInput) {
+  adminSearchInput.addEventListener('input', (e) => {
+    const term = e.target.value.trim().toLowerCase();
+    if (!term) {
+      renderAdminRows(allAdminPrestasiData);
+      return;
+    }
+    const filtered = allAdminPrestasiData.filter((row) => {
+      const combined = [
+        row.nomor_urut,
+        row.nama_siswa,
+        row.nis,
+        row.nama_kegiatan,
+        row.penyelenggara,
+        row.tingkat_lomba,
+        row.peringkat,
+        row.tempat,
+        formatDateForDisplay(row.tanggal)
+      ].join(' ').toLowerCase();
+      return combined.includes(term);
+    });
+    renderAdminRows(filtered);
+  });
+}
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    initializeAdminState();
     updateAuthView();
   });
 } else {

@@ -36,8 +36,8 @@ function setLoading(active) {
 }
 
 async function fetchSheet(sheetName) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
-  const response = await fetch(url);
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&_=${Date.now()}`;
+  const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const text = await response.text();
   const jsonText = text.replace(/^[^\{]*/, '').replace(/\);?$/, '');
@@ -346,21 +346,60 @@ function isHeaderLike(value) {
     || lowered === 'dokumen' || lowered === 'foto';
 }
 
-function createStudentList(rows, headers) {
+function parseCSV(text) {
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const parseLine = (line) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const headers = parseLine(lines[0]).map(h => normalizeKey(h));
+  return lines.slice(1).map(line => {
+    const values = parseLine(line);
+    const row = {};
+    headers.forEach((header, idx) => {
+      row[header] = values[idx] || '';
+    });
+    return row;
+  });
+}
+
+async function fetchCSV(sheetName) {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&sheet=${encodeURIComponent(sheetName)}&_=${Date.now()}`;
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return await response.text();
+}
+
+function createStudentList(rows) {
   const students = [];
   const map = {};
 
   rows.forEach((row) => {
-    const values = row && Array.isArray(row.c) ? row.c : [];
-    const nis = String(getCellValue(values[0]) || '').trim();
-    const nama = String(getCellValue(values[1]) || '').trim();
-    const kelas = String(getCellValue(values[2]) || '').trim();
-    const jenisKelamin = String(getCellValue(values[3]) || '').trim();
+    const nis = String(row.nis || '').trim();
+    const nama = String(row.nama_peserta_didik || '').trim();
+    const kelas = String(row.kelas || '').trim();
+    const jenisKelamin = String(row.jenis_kelamin || '').trim();
 
-    const hasValidNis = /^\d{8,}$/.test(nis.replace(/\s+/g, ''));
     const isHeader = ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nis.toLowerCase()) || ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nama.toLowerCase());
 
-    if (!nama || !hasValidNis || isHeader) return;
+    if (!nama || !nis || isHeader) return;
 
     const student = { nis, nama_peserta_didik: nama, kelas, jenis_kelamin: jenisKelamin };
     students.push(student);
@@ -423,12 +462,13 @@ async function loadData() {
   try {
     setLoading(true);
 
-    const [dataSiswa, dataPrestasi] = await Promise.all([
-      fetchSheet(sheets.datasiswa),
+    const [csvSiswa, dataPrestasi] = await Promise.all([
+      fetchCSV(sheets.datasiswa),
       fetchSheet(sheets.prestasi),
     ]);
 
-    const { students, map } = createStudentList(dataSiswa.rows, dataSiswa.cols || []);
+    const rowsSiswa = parseCSV(csvSiswa);
+    const { students, map } = createStudentList(rowsSiswa);
     allStudents = students;
     studentMap = map;
     allRows = sortByDateDesc(createPrestasiRows(dataPrestasi.rows, dataPrestasi.cols || []));
