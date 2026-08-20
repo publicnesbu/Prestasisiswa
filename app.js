@@ -16,6 +16,9 @@ const feedEmptyText = document.getElementById('feedEmptyText');
 const searchInput = document.getElementById('searchInput');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const filterButtons = Array.from(document.querySelectorAll('.filter-chip'));
+const photoLightbox = document.getElementById('photoLightbox');
+const photoLightboxImage = document.getElementById('photoLightboxImage');
+const photoLightboxClose = document.getElementById('photoLightboxClose');
 
 let allRows = [];
 let allStudents = [];
@@ -81,9 +84,21 @@ function parseDateValue(value) {
 
 function formatDate(value) {
   if (!value) return '';
-  const date = parseGoogleDate(value);
-  if (!date) return String(value);
-  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  const text = String(value).trim();
+  const rangeParts = text.split(/\s+sampai\s+/i);
+
+  const formatSingleDate = (dateValue) => {
+    const date = parseGoogleDate(dateValue);
+    return date
+      ? date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
+      : String(dateValue).trim();
+  };
+
+  if (rangeParts.length > 1) {
+    return `${formatSingleDate(rangeParts[0])} sampai ${formatSingleDate(rangeParts[1])}`;
+  }
+
+  return formatSingleDate(text);
 }
 
 function isDriveFolderUrl(source) {
@@ -207,14 +222,15 @@ function createFeedCard(row) {
       <img class="feed-card__avatar" src="logo.png" alt="" width="36" height="36">
       <div class="feed-card__author">
         <strong>smknesbu</strong>
-        <span>${escapeHtml([dateStr, place].filter(Boolean).join(' · ') || 'Prestasi Siswa')}</span>
+        <span class="feed-card__date">${escapeHtml(dateStr || 'Prestasi Siswa')}</span>
+        ${place ? `<span class="feed-card__place">${escapeHtml(place)}</span>` : ''}
       </div>
       ${level ? `<span class="${levelPillClass(level)}">${escapeHtml(level)}</span>` : ''}
     </header>
 
     <div class="feed-card__media">
       ${photoUrl
-        ? `<img src="${escapeHtml(photoUrl)}" alt="Foto ${escapeHtml(studentName)}" loading="lazy">`
+        ? `<img class="feed-card__photo" src="${escapeHtml(photoUrl)}" alt="Foto ${escapeHtml(studentName)}" loading="lazy">`
         : `<div class="feed-card__placeholder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
             <span>Prestasi SMKNESBU</span>
@@ -226,7 +242,7 @@ function createFeedCard(row) {
       <button class="feed-action feed-action--share" type="button" aria-label="Bagikan prestasi">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
       </button>
-      ${docLink ? `<a class="feed-action" href="${escapeHtml(docLink)}" target="_blank" rel="noopener noreferrer" aria-label="Lihat dokumen">
+      ${docLink ? `<a class="feed-action feed-action--document" href="${escapeHtml(docLink)}" target="_blank" rel="noopener noreferrer" aria-label="Lihat dokumen" title="Lihat dokumen">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       </a>` : ''}
     </div>
@@ -256,6 +272,23 @@ function createFeedCard(row) {
   const shareBtn = article.querySelector('.feed-action--share');
   const shareMenu = article.querySelector('.feed-share-menu');
   const copyBtn = article.querySelector('.share-link--copy');
+  const photo = article.querySelector('.feed-card__photo');
+
+  if (photo) {
+    photo.addEventListener('error', () => {
+      photo.hidden = true;
+      const media = article.querySelector('.feed-card__media');
+      if (media && !media.querySelector('.feed-card__photo-fallback')) {
+        media.insertAdjacentHTML('beforeend', '<div class="feed-card__photo-fallback">Foto tidak dapat dimuat</div>');
+      }
+    });
+    photo.addEventListener('click', () => {
+      if (!photoLightbox || !photoLightboxImage) return;
+      photoLightboxImage.src = photo.src;
+      photoLightbox.hidden = false;
+      document.body.classList.add('lightbox-open');
+    });
+  }
 
   shareBtn.addEventListener('click', async () => {
     const usedNative = await sharePrestasi(row);
@@ -273,6 +306,21 @@ function createFeedCard(row) {
 
   return article;
 }
+
+function closePhotoLightbox() {
+  if (!photoLightbox) return;
+  photoLightbox.hidden = true;
+  if (photoLightboxImage) photoLightboxImage.removeAttribute('src');
+  document.body.classList.remove('lightbox-open');
+}
+
+if (photoLightboxClose) photoLightboxClose.addEventListener('click', closePhotoLightbox);
+if (photoLightbox) photoLightbox.addEventListener('click', (event) => {
+  if (event.target === photoLightbox) closePhotoLightbox();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closePhotoLightbox();
+});
 
 function renderCards(rows) {
   prestasiFeed.innerHTML = '';

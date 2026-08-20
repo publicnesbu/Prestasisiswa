@@ -167,12 +167,18 @@
       </nav>
 
       <div id="adminSection" class="admin-full-table-section" data-tab-panel="prestasi">
+        <div class="admin-stat-grid" aria-label="Ringkasan data prestasi">
+          <div class="admin-stat-card"><span class="admin-stat-card__label">Total Prestasi</span><strong id="adminStatTotal">0</strong><span class="admin-stat-card__hint">Semua data terdaftar</span></div>
+          <div class="admin-stat-card"><span class="admin-stat-card__label">Siswa Berprestasi</span><strong id="adminStatStudents">0</strong><span class="admin-stat-card__hint">Siswa unik</span></div>
+          <div class="admin-stat-card"><span class="admin-stat-card__label">Tahun Berjalan</span><strong id="adminStatYear">0</strong><span class="admin-stat-card__hint">Prestasi tahun ini</span></div>
+        </div>
         <!-- Table Panel -->
         <div class="panel admin-table-panel">
           <div class="admin-table-head">
             <div>
               <h3>Data Prestasi Terdaftar</h3>
               <p class="table-subtitle">Daftar semua pencapaian dan prestasi siswa SMK Negeri 1 Bumijawa.</p>
+              <p id="adminDataScope" class="table-subtitle admin-data-scope" aria-live="polite"></p>
             </div>
             <div class="table-head-right">
               <span id="adminSummary" class="admin-summary-pill">0 data</span>
@@ -187,6 +193,20 @@
             <div class="table-search-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
               <input id="adminSearchInput" type="search" placeholder="Cari nama siswa, NIS, kegiatan, penyelenggara, tingkat, peringkat..." autocomplete="off">
+            </div>
+            <div class="admin-filter-group">
+              <label class="sr-only" for="adminLevelFilter">Filter tingkat</label>
+              <select id="adminLevelFilter" class="admin-toolbar-select">
+                <option value="all">Semua tingkat</option>
+                <option value="Kabupaten">Kabupaten</option>
+                <option value="Provinsi">Provinsi</option>
+                <option value="Nasional">Nasional</option>
+                <option value="Internasional">Internasional</option>
+              </select>
+              <label class="sr-only" for="adminYearFilter">Filter tahun</label>
+              <select id="adminYearFilter" class="admin-toolbar-select">
+                <option value="all">Semua tahun</option>
+              </select>
             </div>
           </div>
 
@@ -341,11 +361,18 @@
           </div>
 
           <div class="form-field">
-            <label class="form-label" for="tanggalInput">
-              <span class="label-text">Tanggal Pelaksanaan</span>
+            <label class="form-label" for="tanggalMulaiInput">
+              <span class="label-text">Tanggal Mulai</span>
               <span class="label-req">*</span>
             </label>
-            <input id="tanggalInput" class="admin-input" type="date" name="tanggal" required>
+            <input id="tanggalMulaiInput" class="admin-input" type="date" name="tanggal_mulai" required>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="tanggalSelesaiInput">
+              <span class="label-text">Tanggal Selesai</span>
+            </label>
+            <input id="tanggalSelesaiInput" class="admin-input" type="date" name="tanggal_selesai">
           </div>
 
           <div class="form-field">
@@ -366,6 +393,7 @@
                 <span class="file-upload-text" id="fotoFileLabel">Pilih Foto Kegiatan</span>
                 <span class="file-upload-hint">JPG, PNG, WebP (Maks. 10MB)</span>
               </div>
+              <img id="fotoPreview" class="file-upload-preview" alt="Pratinjau foto kegiatan" hidden>
             </div>
           </div>
 
@@ -380,6 +408,7 @@
                 <span class="file-upload-text" id="dokumenFileLabel">Pilih Dokumen / Sertifikat</span>
                 <span class="file-upload-hint">PDF, DOC, Gambar pendukung</span>
               </div>
+              <span id="dokumenFileMeta" class="file-upload-meta" hidden></span>
             </div>
           </div>
         </div>

@@ -6,6 +6,38 @@ function getSpreadsheet() {
   return SpreadsheetApp.openById(SHEET_ID);
 }
 
+function getAccountByUsername(username) {
+  const sheet = getSpreadsheet().getSheetByName('AKUN');
+  if (!sheet) throw new Error('Sheet AKUN tidak ditemukan.');
+
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!normalizedUsername) return null;
+
+  const rows = sheet.getDataRange().getValues();
+  const row = rows.slice(1).find((item) => String(item[1] || '').trim().toLowerCase() === normalizedUsername);
+  if (!row) return null;
+
+  return {
+    user: String(row[1] || '').trim(),
+    nama_user: String(row[2] || '').trim(),
+    role: String(row[4] || 'guru_pembimbing').trim().toLowerCase(),
+  };
+}
+
+function authorizeDriveAccess() {
+  const photoFolder = DriveApp.getFolderById(PHOTO_FOLDER_ID);
+  const documentFolder = DriveApp.getFolderById(DOC_FOLDER_ID);
+  return `Drive aktif: ${photoFolder.getName()} dan ${documentFolder.getName()}`;
+}
+
+function testDriveWriteAccess() {
+  const folder = DriveApp.getFolderById(PHOTO_FOLDER_ID);
+  const testFile = folder.createFile('PRESTASISISWA2_DRIVE_TEST.txt', 'Tes izin Drive', MimeType.PLAIN_TEXT);
+  const fileId = testFile.getId();
+  testFile.setTrashed(true);
+  return `Izin tulis Drive aktif. File uji ${fileId} sudah dihapus.`;
+}
+
 function getDriveUrl(fileId) {
   return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
@@ -17,6 +49,17 @@ function uploadFileToFolder(file, folderId) {
   const uploaded = folder.createFile(file);
   const fileId = uploaded.getId();
   return getDriveUrl(fileId);
+}
+
+function uploadBase64File(base64, fileName, mimeType, folderId) {
+  if (!base64 || !fileName || !folderId) return '';
+  const normalizedBase64 = String(base64)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  const paddedBase64 = normalizedBase64 + '='.repeat((4 - normalizedBase64.length % 4) % 4);
+  const bytes = Utilities.base64Decode(paddedBase64);
+  const blob = Utilities.newBlob(bytes, mimeType || 'application/octet-stream', fileName);
+  return uploadFileToFolder(blob, folderId);
 }
 
 function jsonResponse(obj) {
@@ -55,8 +98,14 @@ function writePrestasiRow(payload) {
   const row = Array(sheetHeaders.length).fill('');
 
   const nomorUrutIndex = headerMap.nomor_urut;
-  const lastRowCount = sheet.getLastRow() || 1;
-  const nomorUrut = Math.max(1, lastRowCount);
+  let nomorUrut = Math.max(1, sheet.getLastRow());
+  if (nomorUrutIndex !== undefined && sheet.getLastRow() > 1) {
+    const nomorValues = sheet.getRange(2, nomorUrutIndex + 1, sheet.getLastRow() - 1, 1).getValues();
+    const existingNumbers = nomorValues
+      .map((value) => parseInt(value[0], 10))
+      .filter((value) => !isNaN(value));
+    nomorUrut = existingNumbers.length ? Math.max(...existingNumbers) + 1 : 1;
+  }
 
   if (nomorUrutIndex !== undefined) {
     row[nomorUrutIndex] = String(nomorUrut);
@@ -73,6 +122,7 @@ function writePrestasiRow(payload) {
     peringkat: ['peringkat', 'juara'],
     foto: ['foto', 'foto_kegiatan'],
     dokumen: ['dokumen', 'dokumen_pendukung'],
+    oleh: ['oleh', 'dibuat_oleh', 'pembuat'],
   };
 
   Object.entries(fieldAliases).forEach(([field, aliases]) => {
@@ -103,8 +153,17 @@ function findRowIndex(sheet, payload) {
     headerMap[normalizeHeaderName(header)] = index;
   });
 
-  // 1. Try by row index (nomor_urut) if it's a valid row number
+  // 1. Prefer the stable nomor_urut value when the sheet has that column.
   const nomorUrut = parseInt(payload.nomor_urut, 10);
+  if (!isNaN(nomorUrut) && headerMap.nomor_urut !== undefined) {
+    for (let i = 1; i < data.length; i++) {
+      if (parseInt(data[i][headerMap.nomor_urut], 10) === nomorUrut) {
+        return i + 1;
+      }
+    }
+  }
+
+  // 2. Try by row index (nomor_urut) if it is a valid row number.
   if (!isNaN(nomorUrut) && nomorUrut >= 2 && nomorUrut <= data.length) {
     const candidateRow = data[nomorUrut - 1]; // 0-indexed in JS array
     // Verify if it matches key fields
@@ -113,14 +172,14 @@ function findRowIndex(sheet, payload) {
     }
   }
 
-  // 2. Search all rows for a match on key fields
+  // 3. Search all rows for a match on key fields
   for (let i = 1; i < data.length; i++) {
     if (matchesKeyFields(data[i], headerMap, payload)) {
       return i + 1; // 1-based row index in sheet
     }
   }
 
-  // 3. Fallback to just the row number if we can't find a value-based match but the row number is provided and valid
+  // 4. Fallback to just the row number if we cannot find a value-based match.
   if (!isNaN(nomorUrut) && nomorUrut >= 2 && nomorUrut <= data.length) {
     return nomorUrut;
   }
@@ -195,14 +254,15 @@ function updatePrestasiRow(payload) {
     peringkat: ['peringkat', 'juara'],
     foto: ['foto', 'foto_kegiatan'],
     dokumen: ['dokumen', 'dokumen_pendukung'],
+    oleh: ['oleh', 'dibuat_oleh', 'pembuat'],
   };
 
-  const updatedRow = Array(headerRow.length).fill('');
-  if (headerMap.nomor_urut !== undefined) {
-    updatedRow[headerMap.nomor_urut] = String(payload.nomor_urut || '');
-  }
+  const existingRow = data[targetRowIndex - 1];
+  const updatedRow = existingRow.slice();
 
   Object.entries(fieldAliases).forEach(([field, aliases]) => {
+    if (field === 'oleh') return;
+
     const targetHeader = aliases
       .map((alias) => normalizeHeaderName(alias))
       .find((aliasKey) => headerMap[aliasKey] !== undefined);
@@ -215,7 +275,6 @@ function updatePrestasiRow(payload) {
   });
 
   // Preserve existing photo/document if no new file is uploaded
-  const existingRow = data[targetRowIndex - 1];
   const fotoHeaderIdx = headerMap.foto;
   if (fotoHeaderIdx !== undefined && !updatedRow[fotoHeaderIdx]) {
     updatedRow[fotoHeaderIdx] = String(existingRow[fotoHeaderIdx] || '').trim();
@@ -266,6 +325,13 @@ function normalizeFormValue(value) {
   return String(value).replace(/\+/g, ' ').trim();
 }
 
+function normalizeMultipartValue(key, value) {
+  if (/Base64$/i.test(String(key || ''))) {
+    return String(value || '').trim();
+  }
+  return normalizeFormValue(value);
+}
+
 function doPost(e) {
   try {
     const contentType = e && e.postData && e.postData.type ? e.postData.type : '';
@@ -274,14 +340,14 @@ function doPost(e) {
     let body = {};
     if (contentType.indexOf('multipart/form-data') !== -1) {
       const multipartValues = Object.entries(e.parameter || {}).reduce((acc, [key, value]) => {
-        acc[key] = normalizeFormValue(value);
+        acc[key] = normalizeMultipartValue(key, value);
         return acc;
       }, {});
 
       const parameterValues = Object.entries(e.parameters || {}).reduce((acc, [key, value]) => {
         const normalized = Array.isArray(value)
-          ? value.map((item) => normalizeFormValue(item)).filter((item) => item !== '')
-          : normalizeFormValue(value);
+          ? value.map((item) => normalizeMultipartValue(key, item)).filter((item) => item !== '')
+          : normalizeMultipartValue(key, value);
 
         acc[key] = Array.isArray(normalized) && normalized.length > 0 ? normalized[0] : normalized;
         return acc;
@@ -330,13 +396,25 @@ function doPost(e) {
     }
 
     if (action === 'addPrestasi' || action === 'updatePrestasi') {
-      const fotoFile = e && e.parameter && e.parameter.fotoFile ? e.parameter.fotoFile : null;
-      const dokumenFile = e && e.parameter && e.parameter.dokumenFile ? e.parameter.dokumenFile : null;
+      const writeLock = LockService.getScriptLock();
+      writeLock.waitLock(30000);
+
+      try {
       const payload = {
         ...(body.payload && typeof body.payload === 'object' ? body.payload : body),
         foto: '',
         dokumen: '',
       };
+
+      const account = getAccountByUsername(body.user || payload.oleh);
+      if (!account) {
+        return jsonResponse({ success: false, message: 'Akun pembuat data tidak valid.' });
+      }
+      payload.oleh = account.user;
+
+      if (action === 'updatePrestasi' && !String(payload.nomor_urut || '').trim()) {
+        return jsonResponse({ success: false, message: 'Nomor urut data edit tidak ditemukan.' });
+      }
 
       const fallbackPayload = {
         nomor_urut: normalizeFormValue(body.nomor_urut || e.parameter && e.parameter.nomor_urut),
@@ -348,6 +426,7 @@ function doPost(e) {
         tempat: normalizeFormValue(body.tempat || e.parameter && e.parameter.tempat),
         tingkat_lomba: normalizeFormValue(body.tingkat_lomba || e.parameter && e.parameter.tingkat_lomba),
         peringkat: normalizeFormValue(body.peringkat || e.parameter && e.parameter.peringkat),
+        oleh: normalizeFormValue(body.oleh || body.user || e.parameter && (e.parameter.oleh || e.parameter.user)),
       };
 
       Object.keys(fallbackPayload).forEach((key) => {
@@ -356,12 +435,12 @@ function doPost(e) {
         }
       });
 
-      if (fotoFile && typeof fotoFile.getName === 'function') {
-        payload.foto = uploadFileToFolder(fotoFile, PHOTO_FOLDER_ID);
+      if (body.fotoFileBase64) {
+        payload.foto = uploadBase64File(body.fotoFileBase64, body.fotoFileName, body.fotoFileType, PHOTO_FOLDER_ID);
       }
 
-      if (dokumenFile && typeof dokumenFile.getName === 'function') {
-        payload.dokumen = uploadFileToFolder(dokumenFile, DOC_FOLDER_ID);
+      if (body.dokumenFileBase64) {
+        payload.dokumen = uploadBase64File(body.dokumenFileBase64, body.dokumenFileName, body.dokumenFileType, DOC_FOLDER_ID);
       }
 
       const required = ['nama_kegiatan', 'penyelenggara', 'nis', 'nama_siswa'];
@@ -381,6 +460,9 @@ function doPost(e) {
 
       const result = writePrestasiRow(payload);
       return jsonResponse({ success: true, ...result });
+      } finally {
+        writeLock.releaseLock();
+      }
     }
 
     if (action === 'deletePrestasi') {
@@ -505,6 +587,17 @@ function doPost(e) {
   }
 }
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'driveCheck') {
+    try {
+      return jsonResponse({ success: true, message: authorizeDriveAccess() });
+    } catch (error) {
+      return jsonResponse({
+        success: false,
+        message: error && error.message ? error.message : 'Akses Drive belum diotorisasi.',
+      });
+    }
+  }
+
   return jsonResponse({ success: true, message: 'Apps Script aktif.' });
 }

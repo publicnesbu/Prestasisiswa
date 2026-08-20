@@ -28,6 +28,12 @@ const cancelModalBtn = document.getElementById('cancelModalBtn');
 
 const adminTableBody = document.getElementById('adminTableBody');
 const adminSummary = document.getElementById('adminSummary');
+const adminStatTotal = document.getElementById('adminStatTotal');
+const adminStatStudents = document.getElementById('adminStatStudents');
+const adminStatYear = document.getElementById('adminStatYear');
+const adminLevelFilter = document.getElementById('adminLevelFilter');
+const adminYearFilter = document.getElementById('adminYearFilter');
+const adminDataScope = document.getElementById('adminDataScope');
 const loadingOverlay = document.getElementById('loadingOverlay');
 const namaSiswaSearch = document.getElementById('namaSiswaSearch');
 const studentPickerMenu = document.getElementById('studentPickerMenu');
@@ -49,6 +55,7 @@ const userSection = document.getElementById('userSection');
 let studentList = [];
 let currentEditRowId = null;
 let allUserData = [];
+let isPrestasiSubmitting = false;
 
 /* ── Toast Notification Function ── */
 function showToast(message, type = 'success', title = '') {
@@ -326,6 +333,56 @@ function renderAdminRows(rows) {
   });
 }
 
+function getRowYear(row) {
+  const firstDate = String(row.tanggal || '').split(/\s+sampai\s+/i)[0];
+  const normalized = normalizeDateForInput(firstDate);
+  return normalized ? normalized.slice(0, 4) : '';
+}
+
+function updateAdminStats(rows) {
+  const currentYear = String(new Date().getFullYear());
+  const students = new Set(rows.map((row) => String(row.nis || row.nama_siswa || '').trim()).filter(Boolean));
+  const thisYear = rows.filter((row) => getRowYear(row) === currentYear).length;
+
+  if (adminStatTotal) adminStatTotal.textContent = rows.length;
+  if (adminStatStudents) adminStatStudents.textContent = students.size;
+  if (adminStatYear) adminStatYear.textContent = thisYear;
+}
+
+function populateAdminYearFilter(rows) {
+  if (!adminYearFilter) return;
+  const selected = adminYearFilter.value || 'all';
+  const years = [...new Set(rows.map(getRowYear).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+  adminYearFilter.innerHTML = '<option value="all">Semua tahun</option>';
+  years.forEach((year) => {
+    adminYearFilter.insertAdjacentHTML('beforeend', `<option value="${year}">${year}</option>`);
+  });
+  adminYearFilter.value = years.includes(selected) ? selected : 'all';
+}
+
+function filterAdminRows() {
+  const term = String(adminSearchInput?.value || '').trim().toLowerCase();
+  const level = adminLevelFilter?.value || 'all';
+  const year = adminYearFilter?.value || 'all';
+  const filtered = allAdminPrestasiData.filter((row) => {
+    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
+    return (!term || combined.includes(term))
+      && (level === 'all' || String(row.tingkat_lomba).toLowerCase() === level.toLowerCase())
+      && (year === 'all' || getRowYear(row) === year);
+  });
+  renderAdminRows(filtered);
+}
+
+function getAccessiblePrestasiRows(rows) {
+  const session = getSession();
+  if (!session || String(session.role || '').toLowerCase() === 'admin') return rows;
+
+  const identities = [session.user, session.nama_user, session.nama]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+  return rows.filter((row) => identities.includes(String(row.oleh || '').trim().toLowerCase()));
+}
+
 function getCellValue(cell) {
   if (!cell) return '';
   if (typeof cell === 'object') {
@@ -589,6 +646,7 @@ async function fetchPrestasiData() {
         const tempat = String(pickValue(row, ['tempat', 'tempat_pelaksanaan', 'tempat_lomba']) || '').trim();
         const foto = String(pickValue(row, ['foto', 'foto_kegiatan']) || '').trim();
         const dokumen = String(pickValue(row, ['dokumen', 'dokumen_pendukung']) || '').trim();
+        const oleh = String(pickValue(row, ['oleh', 'dibuat_oleh', 'pembuat']) || '').trim();
 
         if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal && !penyelenggara && !tempat && !nis) {
           return null;
@@ -606,21 +664,22 @@ async function fetchPrestasiData() {
           tempat,
           foto,
           dokumen,
+          oleh,
         };
       })
       .filter(Boolean);
 
-    allAdminPrestasiData = data;
-    if (adminSearchInput && adminSearchInput.value.trim()) {
-      const term = adminSearchInput.value.trim().toLowerCase();
-      const filtered = allAdminPrestasiData.filter((row) => {
-        const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
-        return combined.includes(term);
-      });
-      renderAdminRows(filtered);
-    } else {
-      renderAdminRows(data);
+    const visibleData = getAccessiblePrestasiRows(data);
+    allAdminPrestasiData = visibleData;
+    updateAdminStats(visibleData);
+    populateAdminYearFilter(visibleData);
+    if (adminDataScope) {
+      const session = getSession();
+      adminDataScope.textContent = session?.role === 'admin'
+        ? 'Menampilkan seluruh data prestasi.'
+        : `Menampilkan data yang dibuat oleh ${session?.nama_user || session?.user || 'akun ini'}.`;
     }
+    filterAdminRows();
   } catch (error) {
     console.error('Gagal memuat data prestasi:', error);
     if (adminTableBody) {
@@ -694,6 +753,8 @@ function resetEditState() {
   const submitBtnText = document.getElementById('submitBtnText');
   const fotoFileLabel = document.getElementById('fotoFileLabel');
   const dokumenFileLabel = document.getElementById('dokumenFileLabel');
+  const fotoPreview = document.getElementById('fotoPreview');
+  const dokumenFileMeta = document.getElementById('dokumenFileMeta');
 
   if (formTitle) formTitle.textContent = 'Tambah Prestasi Baru';
   if (formModeBadge) {
@@ -704,6 +765,14 @@ function resetEditState() {
 
   if (fotoFileLabel) fotoFileLabel.textContent = 'Pilih Foto Kegiatan';
   if (dokumenFileLabel) dokumenFileLabel.textContent = 'Pilih Dokumen / Sertifikat';
+  if (fotoPreview) {
+    fotoPreview.hidden = true;
+    fotoPreview.removeAttribute('src');
+  }
+  if (dokumenFileMeta) {
+    dokumenFileMeta.hidden = true;
+    dokumenFileMeta.textContent = '';
+  }
 }
 
 function populateFormFromRow(row) {
@@ -712,7 +781,8 @@ function populateFormFromRow(row) {
   const fields = {
     nama_kegiatan: row.nama_kegiatan || '',
     penyelenggara: row.penyelenggara || '',
-    tanggal: normalizeDateForInput(row.tanggal || row.tanggal_pelaksanaan || ''),
+    tanggal_mulai: normalizeDateForInput(String(row.tanggal || row.tanggal_pelaksanaan || '').split(/\s+sampai\s+/i)[0]),
+    tanggal_selesai: normalizeDateForInput(String(row.tanggal || row.tanggal_pelaksanaan || '').split(/\s+sampai\s+/i)[1] || ''),
     tempat: row.tempat || '',
     tingkat_lomba: row.tingkat_lomba || 'Kabupaten',
     peringkat: row.peringkat || '',
@@ -795,6 +865,12 @@ async function deleteRowById(row) {
 async function submitPrestasi(payload, actionName = 'addPrestasi') {
   showLoading(true);
   try {
+    if (actionName === 'updatePrestasi' && !String(payload.nomor_urut || '').trim()) {
+      throw new Error('ID data untuk edit tidak ditemukan. Tutup form lalu buka Edit Data kembali.');
+    }
+
+    const fotoFile = payload.fotoFile;
+    const dokumenFile = payload.dokumenFile;
     const plainPayload = { action: actionName };
     Object.entries(payload).forEach(([key, value]) => {
       if (key === 'fotoFile' || key === 'dokumenFile') return;
@@ -803,37 +879,40 @@ async function submitPrestasi(payload, actionName = 'addPrestasi') {
       }
     });
 
-    const fotoFile = payload.fotoFile;
-    const dokumenFile = payload.dokumenFile;
     const hasFiles = (fotoFile instanceof File && fotoFile.size > 0) || (dokumenFile instanceof File && dokumenFile.size > 0);
 
-    let requestBody;
-    let requestHeaders = {};
+    const fileToPayload = (file, prefix) => new Promise((resolve, reject) => {
+      if (!(file instanceof File) || file.size === 0) {
+        resolve();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve({
+        [`${prefix}Base64`]: String(reader.result).split(',')[1]
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, ''),
+        [`${prefix}Name`]: file.name,
+        [`${prefix}Type`]: file.type || 'application/octet-stream',
+      });
+      reader.onerror = () => reject(new Error(`Gagal membaca file ${file.name}.`));
+      reader.readAsDataURL(file);
+    });
 
     if (hasFiles) {
-      const formData = new FormData();
-      Object.entries(plainPayload).forEach(([key, value]) => {
-        formData.append(key, value);
+      const [fotoData, dokumenData] = await Promise.all([
+        fileToPayload(fotoFile, 'fotoFile'),
+        fileToPayload(dokumenFile, 'dokumenFile'),
+      ]);
+      [fotoData, dokumenData].filter(Boolean).forEach((fileData) => {
+        Object.assign(plainPayload, fileData);
       });
-
-      if (fotoFile instanceof File && fotoFile.size > 0) {
-        formData.set('fotoFile', fotoFile, fotoFile.name);
-      }
-
-      if (dokumenFile instanceof File && dokumenFile.size > 0) {
-        formData.set('dokumenFile', dokumenFile, dokumenFile.name);
-      }
-
-      requestBody = formData;
-    } else {
-      requestBody = new URLSearchParams(plainPayload).toString();
-      requestHeaders['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
     }
 
     const response = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: requestHeaders,
-      body: requestBody
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams(plainPayload).toString()
     });
 
     const text = await response.text();
@@ -1237,74 +1316,87 @@ if (prestasiForm) {
   prestasiForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
-    const session = getSession();
-    if (!session) {
-      showToast('Sesi habis. Silakan login kembali.', 'warning', 'Perhatian');
-      return;
-    }
+    if (isPrestasiSubmitting) return;
+    isPrestasiSubmitting = true;
 
-    const formData = new FormData(prestasiForm);
-    const basePayload = {
+    try {
+      const session = getSession();
+      if (!session) {
+        showToast('Sesi habis. Silakan login kembali.', 'warning', 'Perhatian');
+        return;
+      }
+
+      const formData = new FormData(prestasiForm);
+      const basePayload = {
       nomor_urut: String(formData.get('nomor_urut') || currentEditRowId || '').trim(),
       nama_kegiatan: String(document.querySelector('[name="nama_kegiatan"]')?.value ?? formData.get('nama_kegiatan') ?? '').trim(),
       penyelenggara: String(document.querySelector('[name="penyelenggara"]')?.value ?? formData.get('penyelenggara') ?? '').trim(),
-      tanggal: String(document.querySelector('[name="tanggal"]')?.value ?? formData.get('tanggal') ?? '').trim(),
+      tanggal_mulai: String(document.querySelector('[name="tanggal_mulai"]')?.value ?? formData.get('tanggal_mulai') ?? '').trim(),
+      tanggal_selesai: String(document.querySelector('[name="tanggal_selesai"]')?.value ?? formData.get('tanggal_selesai') ?? '').trim(),
       tempat: String(document.querySelector('[name="tempat"]')?.value ?? formData.get('tempat') ?? '').trim(),
       tingkat_lomba: String(document.querySelector('[name="tingkat_lomba"]')?.value ?? formData.get('tingkat_lomba') ?? '').trim(),
       peringkat: String(document.querySelector('[name="peringkat"]')?.value ?? formData.get('peringkat') ?? '').trim(),
       user: session.user || 'admin',
       fotoFile: formData.get('fotoFile'),
       dokumenFile: formData.get('dokumenFile'),
-    };
+      };
+
+      basePayload.tanggal = basePayload.tanggal_selesai && basePayload.tanggal_selesai !== basePayload.tanggal_mulai
+      ? `${basePayload.tanggal_mulai} sampai ${basePayload.tanggal_selesai}`
+      : basePayload.tanggal_mulai;
 
     // Validate base fields
-    const baseRequired = [
+      const baseRequired = [
       { key: 'nama_kegiatan', label: 'Nama Kegiatan' },
       { key: 'penyelenggara', label: 'Penyelenggara' },
       { key: 'tanggal', label: 'Tanggal Pelaksanaan' },
-    ];
-    const missingBase = baseRequired.filter((f) => !String(basePayload[f.key] || '').trim());
-    if (missingBase.length) {
-      showToast(`Harap lengkapi: ${missingBase.map((f) => f.label).join(', ')}`, 'warning', 'Form Belum Lengkap');
-      return;
-    }
+      ];
+      const missingBase = baseRequired.filter((f) => !String(basePayload[f.key] || '').trim());
+      if (missingBase.length) {
+        showToast(`Harap lengkapi: ${missingBase.map((f) => f.label).join(', ')}`, 'warning', 'Form Belum Lengkap');
+        return;
+      }
 
-    if (selectedStudents.length === 0) {
-      showToast('Harap pilih minimal satu siswa.', 'warning', 'Siswa Belum Dipilih');
-      return;
-    }
+      if (selectedStudents.length === 0) {
+        showToast('Harap pilih minimal satu siswa.', 'warning', 'Siswa Belum Dipilih');
+        return;
+      }
 
-    const actionName = currentEditRowId ? 'updatePrestasi' : 'addPrestasi';
+      const actionName = currentEditRowId ? 'updatePrestasi' : 'addPrestasi';
 
-    if (actionName === 'updatePrestasi') {
+      if (actionName === 'updatePrestasi') {
       // Edit mode: always single student
       const student = selectedStudents[0];
       const payload = { ...basePayload, nama_siswa: student.nama, nis: student.nis };
       await submitPrestasi(payload, 'updatePrestasi');
-      return;
-    }
+        return;
+      }
 
     // Add mode: submit one row per selected student
-    showLoading(true);
-    let successCount = 0;
-    let failCount = 0;
-    for (const student of selectedStudents) {
+      showLoading(true);
+      let successCount = 0;
+      let failCount = 0;
+      const studentsToSave = [...selectedStudents];
+      for (const student of studentsToSave) {
       const payload = { ...basePayload, nama_siswa: student.nama, nis: student.nis };
       const ok = await submitPrestasi(payload, 'addPrestasi');
       if (ok) successCount++; else failCount++;
-    }
-    showLoading(false);
+      }
+      showLoading(false);
 
-    if (successCount > 0) {
+      if (successCount > 0) {
       const msg = selectedStudents.length > 1
         ? `${successCount} dari ${selectedStudents.length} data prestasi berhasil disimpan.`
         : 'Prestasi siswa berhasil ditambahkan!';
       showToast(msg, 'success', 'Prestasi Disimpan');
       closePrestasiModal();
       await fetchPrestasiData();
-    }
-    if (failCount > 0) {
-      showToast(`${failCount} data gagal disimpan.`, 'error', 'Sebagian Gagal');
+      }
+      if (failCount > 0) {
+        showToast(`${failCount} data gagal disimpan.`, 'error', 'Sebagian Gagal');
+      }
+    } finally {
+      isPrestasiSubmitting = false;
     }
   });
 }
@@ -1341,14 +1433,40 @@ const dokumenFileLabel = document.getElementById('dokumenFileLabel');
 if (fotoFileInput && fotoFileLabel) {
   fotoFileInput.addEventListener('change', () => {
     const file = fotoFileInput.files && fotoFileInput.files[0];
+    const fotoPreview = document.getElementById('fotoPreview');
+    if (file && (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024)) {
+      fotoFileInput.value = '';
+      if (fotoPreview) fotoPreview.hidden = true;
+      showToast('Foto harus berupa gambar dan berukuran maksimal 10 MB.', 'warning', 'File Tidak Valid');
+      fotoFileLabel.textContent = 'Pilih Foto Kegiatan';
+      return;
+    }
     fotoFileLabel.textContent = file ? file.name : 'Pilih Foto Kegiatan';
+    if (fotoPreview && file) {
+      fotoPreview.src = URL.createObjectURL(file);
+      fotoPreview.hidden = false;
+    } else if (fotoPreview) {
+      fotoPreview.hidden = true;
+    }
   });
 }
 
 if (dokumenFileInput && dokumenFileLabel) {
   dokumenFileInput.addEventListener('change', () => {
     const file = dokumenFileInput.files && dokumenFileInput.files[0];
+    const dokumenFileMeta = document.getElementById('dokumenFileMeta');
+    if (file && file.size > 10 * 1024 * 1024) {
+      dokumenFileInput.value = '';
+      showToast('Dokumen berukuran maksimal 10 MB.', 'warning', 'File Tidak Valid');
+      dokumenFileLabel.textContent = 'Pilih Dokumen / Sertifikat';
+      if (dokumenFileMeta) dokumenFileMeta.hidden = true;
+      return;
+    }
     dokumenFileLabel.textContent = file ? file.name : 'Pilih Dokumen / Sertifikat';
+    if (dokumenFileMeta && file) {
+      dokumenFileMeta.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB`;
+      dokumenFileMeta.hidden = false;
+    }
   });
 }
 
@@ -1356,28 +1474,14 @@ if (dokumenFileInput && dokumenFileLabel) {
 const adminSearchInput = document.getElementById('adminSearchInput');
 if (adminSearchInput) {
   adminSearchInput.addEventListener('input', (e) => {
-    const term = e.target.value.trim().toLowerCase();
-    if (!term) {
-      renderAdminRows(allAdminPrestasiData);
-      return;
-    }
-    const filtered = allAdminPrestasiData.filter((row) => {
-      const combined = [
-        row.nomor_urut,
-        row.nama_siswa,
-        row.nis,
-        row.nama_kegiatan,
-        row.penyelenggara,
-        row.tingkat_lomba,
-        row.peringkat,
-        row.tempat,
-        formatDateForDisplay(row.tanggal)
-      ].join(' ').toLowerCase();
-      return combined.includes(term);
-    });
-    renderAdminRows(filtered);
+    localStorage.setItem('prestasiAdminSearch', e.target.value);
+    filterAdminRows();
   });
 }
+
+[adminLevelFilter, adminYearFilter].forEach((filter) => {
+  if (filter) filter.addEventListener('change', filterAdminRows);
+});
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {

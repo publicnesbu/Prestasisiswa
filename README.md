@@ -70,8 +70,16 @@ Supaya penambahan data dapat berjalan ke Google Sheet secara nyata, gunakan Goog
 2. Buat project baru.
 3. Salin isi file `apps-script.gs`.
 4. Ganti `SHEET_ID` di script dengan ID spreadsheet Anda.
-5. Deploy sebagai Web App.
-6. Salin URL deployment ke `ADMIN_SCRIPT_URL` di `app.js`.
+4. Pastikan file manifest project bernama `appsscript.json` berisi scope Drive dari file yang tersedia di workspace.
+5. Di editor Apps Script, pilih fungsi `testDriveWriteAccess`, klik **Run**, dan izinkan akses Google Drive saat diminta. Hasil yang benar: `Izin tulis Drive aktif`.
+6. Deploy sebagai Web App dengan **Execute as: Me** dan **Who has access: Anyone**. Pilih **New version** pada deployment yang sudah ada.
+7. Salin URL deployment ke `ADMIN_SCRIPT_URL` di `app.js`.
+
+Jika muncul error `You do not have permission to call DriveApp.getFolderById`, buka kembali project Apps Script sebagai akun pemilik folder, jalankan `authorizeDriveAccess`, dan deploy ulang versi terbaru. Jangan menjalankan Web App sebagai pengguna yang mengakses halaman.
+
+Untuk memeriksa deployment yang sedang dipakai halaman admin, buka URL Web App dengan akhiran `?action=driveCheck`. Respons harus berisi `Drive aktif`. Jika masih muncul error izin, deployment tersebut belum memakai versi/akun Apps Script yang sudah diotorisasi. Fungsi `testDriveWriteAccess` harus berhasil sebelum upload dari admin dapat berhasil.
+
+Script tidak lagi mengubah sharing setiap file dengan `setSharing`, karena Google Workspace dapat melarang file publik. Pastikan folder foto dan dokumen sudah memiliki akses lihat yang sesuai untuk pengguna aplikasi.
 
 Dengan cara ini, halaman admin bisa login dari `AKUN` dan menambahkan data baru ke `PRESTASI`.
 
