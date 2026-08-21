@@ -34,7 +34,12 @@ const adminStatYear = document.getElementById('adminStatYear');
 const adminLevelFilter = document.getElementById('adminLevelFilter');
 const adminYearFilter = document.getElementById('adminYearFilter');
 const adminDataScope = document.getElementById('adminDataScope');
+const exportXlsBtn = document.getElementById('exportXlsBtn');
+const exportPdfBtn = document.getElementById('exportPdfBtn');
 const loadingOverlay = document.getElementById('loadingOverlay');
+const adminPhotoLightbox = document.getElementById('adminPhotoLightbox');
+const adminPhotoLightboxImage = document.getElementById('adminPhotoLightboxImage');
+const adminPhotoLightboxClose = document.getElementById('adminPhotoLightboxClose');
 const namaSiswaSearch = document.getElementById('namaSiswaSearch');
 const studentPickerMenu = document.getElementById('studentPickerMenu');
 const nisInput = document.getElementById('nisInput');
@@ -276,6 +281,17 @@ function levelBadgeClass(level) {
   return 'table-level-badge';
 }
 
+function getAdminPhotoUrl(source) {
+  const text = String(source || '').trim();
+  if (!text) return '';
+
+  const driveId = text.match(/(?:id=|\/d\/|\/folders\/)([A-Za-z0-9_-]{10,})/i)?.[1]
+    || text.match(/[-\w]{10,}/g)?.pop();
+  return driveId && /drive\.google\.com/i.test(text)
+    ? `https://drive.google.com/thumbnail?authuser=0&sz=w1200&id=${driveId}`
+    : text;
+}
+
 function renderAdminRows(rows) {
   adminTableBody.innerHTML = '';
 
@@ -283,7 +299,7 @@ function renderAdminRows(rows) {
     adminSummary.textContent = '0 data';
     adminTableBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty-state">Belum ada data prestasi yang sesuai.</td>
+        <td colspan="8" class="empty-state">Belum ada data prestasi yang sesuai.</td>
       </tr>
     `;
     return;
@@ -297,11 +313,15 @@ function renderAdminRows(rows) {
     const tanggalText = formatDateForDisplay(row.tanggal);
     const tingkat = row.tingkat_lomba || '-';
     const peringkat = row.peringkat || '-';
+    const documentationLinks = [
+      row.foto ? `<a class="admin-document-link admin-photo-link" href="${escapeExportValue(getAdminPhotoUrl(row.foto))}" target="_blank" rel="noopener noreferrer" aria-label="Lihat foto dokumentasi" title="Lihat foto dokumentasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></a>` : '',
+      row.dokumen ? `<a class="admin-document-link" href="${escapeExportValue(row.dokumen)}" target="_blank" rel="noopener noreferrer" aria-label="Lihat dokumen pendukung" title="Lihat dokumen pendukung"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h6"/></svg></a>` : ''
+    ].filter(Boolean).join('');
 
     tr.innerHTML = `
       <td><strong>${index + 1}</strong></td>
       <td>
-        <div style="font-weight: 700; color: #fff;">${row.nama_siswa || '-'}</div>
+        <div class="admin-student-name" title="${row.nama_siswa || '-'}">${row.nama_siswa || '-'}</div>
         ${row.nis ? `<div style="font-size: 0.72rem; color: #94a3b8;">NIS: ${row.nis}</div>` : ''}
       </td>
       <td>
@@ -311,6 +331,7 @@ function renderAdminRows(rows) {
       <td><span class="${levelBadgeClass(tingkat)}">${tingkat}</span></td>
       <td>${peringkat !== '-' ? `<span class="table-rank-badge">${peringkat}</span>` : '-'}</td>
       <td style="white-space: nowrap; color: #94a3b8; font-size: 0.78rem;">${tanggalText}</td>
+      <td><div class="admin-document-links">${documentationLinks || '-'}</div></td>
       <td>
         <div class="table-actions">
           <button type="button" class="table-action-btn edit-btn" data-row-id="${rowId}" aria-label="Edit prestasi" title="Edit Data">
@@ -325,12 +346,33 @@ function renderAdminRows(rows) {
 
     const editBtn = tr.querySelector('.edit-btn');
     const deleteBtn = tr.querySelector('.delete-btn');
+    const photoLink = tr.querySelector('.admin-photo-link');
 
     editBtn.addEventListener('click', () => openEditRow(row));
     deleteBtn.addEventListener('click', () => deleteRowById(row));
+    if (photoLink) {
+      photoLink.addEventListener('click', (event) => {
+        event.preventDefault();
+        openAdminPhotoLightbox(photoLink.href);
+      });
+    }
 
     adminTableBody.appendChild(tr);
   });
+}
+
+function openAdminPhotoLightbox(source) {
+  if (!adminPhotoLightbox || !adminPhotoLightboxImage) return;
+  adminPhotoLightboxImage.src = source;
+  adminPhotoLightbox.hidden = false;
+  document.body.classList.add('lightbox-open');
+}
+
+function closeAdminPhotoLightbox() {
+  if (!adminPhotoLightbox) return;
+  adminPhotoLightbox.hidden = true;
+  if (adminPhotoLightboxImage) adminPhotoLightboxImage.removeAttribute('src');
+  document.body.classList.remove('lightbox-open');
 }
 
 function getRowYear(row) {
@@ -371,6 +413,104 @@ function filterAdminRows() {
       && (year === 'all' || getRowYear(row) === year);
   });
   renderAdminRows(filtered);
+}
+
+function getFilteredAdminRows() {
+  const term = String(adminSearchInput?.value || '').trim().toLowerCase();
+  const level = adminLevelFilter?.value || 'all';
+  const year = adminYearFilter?.value || 'all';
+
+  return allAdminPrestasiData.filter((row) => {
+    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
+    return (!term || combined.includes(term))
+      && (level === 'all' || String(row.tingkat_lomba).toLowerCase() === level.toLowerCase())
+      && (year === 'all' || getRowYear(row) === year);
+  });
+}
+
+function escapeExportValue(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function getExportDateRange(value) {
+  const parts = String(value || '').split(/\s+sampai\s+/i);
+  return {
+    mulai: formatDateForDisplay(parts[0]),
+    selesai: parts[1] ? formatDateForDisplay(parts[1]) : '-'
+  };
+}
+
+function getExportUserName() {
+  const session = getSession();
+  return session?.nama || session?.nama_user || session?.user || 'Admin';
+}
+
+function getExportRows() {
+  return getFilteredAdminRows().map((row, index) => {
+    const dateRange = getExportDateRange(row.tanggal);
+    return {
+      no: index + 1,
+      nama: row.nama_siswa || '-',
+      nis: row.nis || '-',
+      kegiatan: row.nama_kegiatan || '-',
+      penyelenggara: row.penyelenggara || '-',
+      tingkat: row.tingkat_lomba || '-',
+      peringkat: row.peringkat || '-',
+      tanggalMulai: dateRange.mulai,
+      tanggalSelesai: dateRange.selesai,
+      foto: getAdminPhotoUrl(row.foto) || '-',
+      tempat: row.tempat || row.tempat_pelaksanaan || '-'
+    };
+  });
+}
+
+function exportAdminXls() {
+  const rows = getExportRows();
+  if (!rows.length) {
+    showToast('Tidak ada data yang sesuai untuk diekspor.', 'warning');
+    return;
+  }
+
+  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
+  const exportHeaders = headers;
+  const body = rows.map((row) => `<tr>${Object.entries(row).filter(([key]) => key !== 'foto').map(([, value]) => `<td>${escapeExportValue(value)}</td>`).join('')}</tr>`).join('');
+  const attachmentBody = rows.filter((row) => row.foto !== '-').map((row) => `<div class="attachment"><div><strong>${escapeExportValue(row.nama)}</strong><br>${escapeExportValue(row.kegiatan)}</div><img class="export-photo" src="${escapeExportValue(row.foto)}" alt="Foto dokumentasi"></div>`).join('');
+  const logoUrl = new URL('logo.png', window.location.href).href;
+  const workbook = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>.report-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}.report-header img{width:52px;height:52px;object-fit:contain}.report-header h2{flex:1;margin:0;text-align:center}.appendix{page-break-before:always;margin-top:32px}.attachment{display:inline-block;width:45%;margin:0 4% 24px 0;vertical-align:top}.attachment div{margin-bottom:6px}.export-photo{width:100%;max-width:320px;height:190px;object-fit:contain;border:1px solid #999}table{border-collapse:collapse}th,td{border:1px solid #999;padding:6px}th{background:#dbeafe;font-weight:bold;text-align:center}</style></head><body><div class="report-header"><img src="${escapeExportValue(logoUrl)}" alt="Logo SMKNESBU"><h2>Data Prestasi Siswa SMK Negeri 1 Bumijawa</h2></div><p>Dicetak oleh: ${escapeExportValue(getExportUserName())}</p><table><thead><tr>${exportHeaders.map((header) => `<th>${header}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${attachmentBody ? `<section class="appendix"><h2>Lampiran Dokumentasi</h2>${attachmentBody}</section>` : ''}</body></html>`;
+  const blob = new Blob([workbook], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `data-prestasi-${new Date().toISOString().slice(0, 10)}.xls`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast(`${rows.length} data berhasil diekspor ke XLS.`, 'success');
+}
+
+function exportAdminPdf() {
+  const rows = getExportRows();
+  if (!rows.length) {
+    showToast('Tidak ada data yang sesuai untuk diekspor.', 'warning');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank', 'width=1200,height=800');
+  if (!printWindow) {
+    showToast('Izinkan pop-up browser untuk mencetak PDF.', 'warning');
+    return;
+  }
+
+  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
+  const exportHeaders = headers;
+  const body = rows.map((row) => `<tr>${Object.entries(row).filter(([key]) => key !== 'foto').map(([, value]) => `<td>${escapeExportValue(value)}</td>`).join('')}</tr>`).join('');
+  const attachmentBody = rows.filter((row) => row.foto !== '-').map((row) => `<div class="attachment"><div><strong>${escapeExportValue(row.nama)}</strong><br>${escapeExportValue(row.kegiatan)}</div><img class="export-photo" src="${escapeExportValue(row.foto)}" alt="Foto dokumentasi"></div>`).join('');
+  const logoUrl = new URL('logo.png', window.location.href).href;
+  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Data Prestasi Siswa</title><style>@page{size:A4 landscape;margin:12mm}body{font:11px Arial,sans-serif;color:#111}.report-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}.report-header img{width:52px;height:52px;object-fit:contain}.report-header h1{flex:1;font-size:18px;margin:0;text-align:center}.appendix{page-break-before:always}.attachment{display:inline-block;width:45%;margin:0 4% 24px 0;vertical-align:top}.attachment div{margin-bottom:6px}.export-photo{width:100%;max-width:320px;height:190px;object-fit:contain;border:1px solid #999}p{margin:0 0 14px;color:#555}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:6px;text-align:left;vertical-align:top}th{background:#dbeafe;text-align:center}tr{page-break-inside:avoid}</style></head><body><div class="report-header"><img src="${escapeExportValue(logoUrl)}" alt="Logo SMKNESBU"><h1>Data Prestasi Siswa SMK Negeri 1 Bumijawa</h1></div><p>Dicetak oleh: ${escapeExportValue(getExportUserName())}<br>Diekspor pada ${escapeExportValue(new Date().toLocaleString('id-ID'))} · ${rows.length} data</p><table><thead><tr>${exportHeaders.map((header) => `<th>${header}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${attachmentBody ? `<section class="appendix"><h2>Lampiran Dokumentasi</h2>${attachmentBody}</section>` : ''}<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script></body></html>`);
+  printWindow.document.close();
 }
 
 function getAccessiblePrestasiRows(rows) {
@@ -1478,6 +1618,18 @@ if (adminSearchInput) {
     filterAdminRows();
   });
 }
+
+if (exportXlsBtn) exportXlsBtn.addEventListener('click', exportAdminXls);
+if (exportPdfBtn) exportPdfBtn.addEventListener('click', exportAdminPdf);
+if (adminPhotoLightboxClose) adminPhotoLightboxClose.addEventListener('click', closeAdminPhotoLightbox);
+if (adminPhotoLightbox) {
+  adminPhotoLightbox.addEventListener('click', (event) => {
+    if (event.target === adminPhotoLightbox) closeAdminPhotoLightbox();
+  });
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAdminPhotoLightbox();
+});
 
 [adminLevelFilter, adminYearFilter].forEach((filter) => {
   if (filter) filter.addEventListener('change', filterAdminRows);

@@ -208,6 +208,16 @@
                 <option value="all">Semua tahun</option>
               </select>
             </div>
+            <div class="admin-export-group" aria-label="Ekspor data prestasi">
+              <button id="exportXlsBtn" type="button" class="btn btn-secondary btn-sm" title="Ekspor ke XLS">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="m8 8 8 8M16 8l-8 8"/></svg>
+                <span>XLS</span>
+              </button>
+              <button id="exportPdfBtn" type="button" class="btn btn-secondary btn-sm" title="Ekspor ke PDF">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M8 15h2a2 2 0 0 0 0-4H8v6m6-6v6m0-6h2a2 2 0 0 1 0 4h-2"/></svg>
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
 
           <div class="table-wrap">
@@ -220,6 +230,7 @@
                   <th>Tingkat</th>
                   <th>Peringkat</th>
                   <th>Tanggal</th>
+                  <th>Dokumentasi</th>
                   <th style="width: 100px; text-align: center;">Aksi</th>
                 </tr>
               </thead>
@@ -517,6 +528,11 @@
       <div class="spinner" aria-hidden="true"></div>
       <p>Memuat data prestasi...</p>
     </div>
+  </div>
+
+  <div id="adminPhotoLightbox" class="photo-lightbox" hidden>
+    <button id="adminPhotoLightboxClose" class="photo-lightbox__close" type="button" aria-label="Tutup foto">&times;</button>
+    <img id="adminPhotoLightboxImage" src="" alt="Foto dokumentasi diperbesar">
   </div>
 
   <script src="admin.js"></script>
