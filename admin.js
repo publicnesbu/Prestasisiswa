@@ -257,19 +257,24 @@ function formatDateForDisplay(value) {
   const raw = String(value).trim();
   if (!raw) return '-';
 
-  const normalized = normalizeDateForInput(raw);
-  if (!normalized) return raw.replace(/\s+/g, ' ');
-
-  const date = new Date(normalized + 'T00:00:00');
-  if (!Number.isNaN(date.getTime())) {
+  const formatSingle = (part) => {
+    const normalized = normalizeDateForInput(part);
+    if (!normalized) return String(part).trim();
+    const date = new Date(normalized + 'T00:00:00');
+    if (Number.isNaN(date.getTime())) return String(part).trim();
     return new Intl.DateTimeFormat('id-ID', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
     }).format(date);
+  };
+
+  const rangeParts = raw.split(/\s+sampai\s+/i);
+  if (rangeParts.length > 1) {
+    return `${formatSingle(rangeParts[0])} sampai ${formatSingle(rangeParts[1])}`;
   }
 
-  return raw.replace(/\s+/g, ' ');
+  return formatSingle(raw);
 }
 
 let allAdminPrestasiData = [];
@@ -299,7 +304,7 @@ function renderAdminRows(rows) {
     adminSummary.textContent = '0 data';
     adminTableBody.innerHTML = `
       <tr>
-        <td colspan="8" class="empty-state">Belum ada data prestasi yang sesuai.</td>
+        <td colspan="9" class="empty-state">Belum ada data prestasi yang sesuai.</td>
       </tr>
     `;
     return;
@@ -331,6 +336,7 @@ function renderAdminRows(rows) {
       <td><span class="${levelBadgeClass(tingkat)}">${tingkat}</span></td>
       <td>${peringkat !== '-' ? `<span class="table-rank-badge">${peringkat}</span>` : '-'}</td>
       <td style="white-space: nowrap; color: #94a3b8; font-size: 0.78rem;">${tanggalText}</td>
+      <td><span class="admin-creator-badge" title="Dibuat oleh ${row.oleh || 'tidak diketahui'}">${row.oleh || '-'}</span></td>
       <td><div class="admin-document-links">${documentationLinks || '-'}</div></td>
       <td>
         <div class="table-actions">
@@ -526,8 +532,12 @@ function getAccessiblePrestasiRows(rows) {
 function getCellValue(cell) {
   if (!cell) return '';
   if (typeof cell === 'object') {
-    if (cell.v !== undefined) return cell.v;
-    if (cell.f !== undefined) return cell.f;
+    if (cell.v !== undefined && cell.v !== null) {
+      if (String(cell.v).startsWith('Date(') && cell.f) return cell.f;
+      return cell.v;
+    }
+    if (cell.f !== undefined && cell.f !== null) return cell.f;
+    return '';
   }
   return cell;
 }
@@ -1512,29 +1522,13 @@ if (prestasiForm) {
         return;
       }
 
-    // Add mode: submit one row per selected student
-      showLoading(true);
-      let successCount = 0;
-      let failCount = 0;
-      const studentsToSave = [...selectedStudents];
-      for (const student of studentsToSave) {
-      const payload = { ...basePayload, nama_siswa: student.nama, nis: student.nis };
-      const ok = await submitPrestasi(payload, 'addPrestasi');
-      if (ok) successCount++; else failCount++;
-      }
-      showLoading(false);
-
-      if (successCount > 0) {
-      const msg = selectedStudents.length > 1
-        ? `${successCount} dari ${selectedStudents.length} data prestasi berhasil disimpan.`
-        : 'Prestasi siswa berhasil ditambahkan!';
-      showToast(msg, 'success', 'Prestasi Disimpan');
-      closePrestasiModal();
-      await fetchPrestasiData();
-      }
-      if (failCount > 0) {
-        showToast(`${failCount} data gagal disimpan.`, 'error', 'Sebagian Gagal');
-      }
+      // Add mode: one achievement row can contain multiple students.
+      const payload = {
+        ...basePayload,
+        nama_siswa: selectedStudents.map((student) => student.nama).join(', '),
+        nis: selectedStudents.map((student) => student.nis).join(', '),
+      };
+      await submitPrestasi(payload, 'addPrestasi');
     } finally {
       isPrestasiSubmitting = false;
     }

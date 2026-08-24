@@ -122,6 +122,16 @@
     <img id="photoLightboxImage" src="" alt="Foto prestasi diperbesar">
   </div>
 
+  <div id="studentListModal" class="student-modal" hidden>
+    <div class="student-modal__panel" role="dialog" aria-modal="true" aria-labelledby="studentListTitle">
+      <div class="student-modal__header">
+        <h3 id="studentListTitle" class="student-modal__title">Daftar Siswa</h3>
+        <button id="studentListClose" class="student-modal__close" type="button" aria-label="Tutup daftar siswa">&times;</button>
+      </div>
+      <ul id="studentListItems" class="student-list"></ul>
+    </div>
+  </div>
+
   <script src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

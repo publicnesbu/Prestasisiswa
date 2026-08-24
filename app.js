@@ -19,6 +19,9 @@ const filterButtons = Array.from(document.querySelectorAll('.filter-chip'));
 const photoLightbox = document.getElementById('photoLightbox');
 const photoLightboxImage = document.getElementById('photoLightboxImage');
 const photoLightboxClose = document.getElementById('photoLightboxClose');
+const studentListModal = document.getElementById('studentListModal');
+const studentListItems = document.getElementById('studentListItems');
+const studentListClose = document.getElementById('studentListClose');
 
 let allRows = [];
 let allStudents = [];
@@ -199,10 +202,51 @@ function renderEmpty(message) {
   resultCountEl.textContent = '';
 }
 
+function getStudentEntries(row) {
+  const names = String(row.nama_siswa || row.nama_peserta_didik || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const nisList = String(row.nis || '')
+    .split(',')
+    .map((value) => value.trim());
+
+  return names.map((nama, idx) => {
+    const nis = nisList[idx] || '';
+    const student = nis ? studentMap[nis] : null;
+    const kelas = (idx === 0 ? row.kelas : '') || student?.kelas || '';
+    return { nama, nis, kelas };
+  });
+}
+
+function openStudentListModal(entries) {
+  if (!studentListModal || !studentListItems) return;
+  studentListItems.innerHTML = entries.map((entry) => `
+    <li class="student-list__item">
+      <span class="student-list__name">${escapeHtml(entry.nama)}</span>
+      ${(entry.kelas || entry.nis) ? `<span class="student-list__meta">${[entry.kelas, entry.nis].filter(Boolean).map(escapeHtml).join(' · ')}</span>` : ''}
+    </li>
+  `).join('');
+  studentListModal.hidden = false;
+  document.body.classList.add('lightbox-open');
+}
+
+function closeStudentListModal() {
+  if (!studentListModal) return;
+  studentListModal.hidden = true;
+  document.body.classList.remove('lightbox-open');
+}
+
+if (studentListClose) studentListClose.addEventListener('click', closeStudentListModal);
+if (studentListModal) studentListModal.addEventListener('click', (event) => {
+  if (event.target === studentListModal) closeStudentListModal();
+});
+
 function createFeedCard(row) {
   const docLink = row.dokumen || row.document || '';
   const photoSource = row.foto || row.photo || '';
   const photoUrl = driveThumbnailUrl(photoSource) || (isDriveFolderUrl(photoSource) ? '' : photoSource);
+  const studentEntries = getStudentEntries(row);
   const studentName = row.nama_siswa || row.nama_peserta_didik || '';
   const kelas = row.kelas || '';
   const rank = row.peringkat || '';
@@ -249,8 +293,12 @@ function createFeedCard(row) {
 
     <div class="feed-card__body">
       <p class="feed-card__caption">
-        <strong>${escapeHtml(studentName)}</strong>
-        ${kelas ? `<span class="feed-card__kelas">· ${escapeHtml(kelas)}</span>` : ''}
+        ${studentEntries.length > 1
+          ? `<strong>${escapeHtml(studentEntries[0].nama)}</strong>
+             <span class="feed-card__kelas">& ${studentEntries.length - 1} siswa lainnya</span>
+             <button class="feed-card__student-btn" type="button">Lihat Siswa (${studentEntries.length})</button>`
+          : `<strong>${escapeHtml(studentName)}</strong>
+             ${kelas ? `<span class="feed-card__kelas">· ${escapeHtml(kelas)}</span>` : ''}`}
       </p>
       <h3 class="feed-card__event">${escapeHtml(event)}</h3>
       ${organizer ? `<p class="feed-card__meta">${escapeHtml(organizer)}</p>` : ''}
@@ -304,6 +352,11 @@ function createFeedCard(row) {
     setTimeout(() => { copyBtn.textContent = 'Salin Teks'; }, 2000);
   });
 
+  const studentBtn = article.querySelector('.feed-card__student-btn');
+  if (studentBtn) {
+    studentBtn.addEventListener('click', () => openStudentListModal(studentEntries));
+  }
+
   return article;
 }
 
@@ -319,7 +372,10 @@ if (photoLightbox) photoLightbox.addEventListener('click', (event) => {
   if (event.target === photoLightbox) closePhotoLightbox();
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closePhotoLightbox();
+  if (event.key === 'Escape') {
+    closePhotoLightbox();
+    closeStudentListModal();
+  }
 });
 
 function renderCards(rows) {
