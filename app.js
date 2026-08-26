@@ -26,7 +26,27 @@ const studentListClose = document.getElementById('studentListClose');
 let allRows = [];
 let allStudents = [];
 let studentMap = {};
+let studentNameMap = {};
 let currentFilter = 'all';
+
+// NIS di sheet PRESTASI dan DATASISWA kadang beda format (spasi, atau NIS
+// panjang yang berubah jadi notasi ilmiah saat export CSV). Normalisasi ke
+// digit saja supaya pencocokan tetap berhasil.
+function normalizeNis(value) {
+  return String(value || '').trim().replace(/[^0-9]/g, '');
+}
+
+function normalizeName(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function findStudent(nis, nama) {
+  const key = normalizeNis(nis);
+  if (key && studentMap[key]) return studentMap[key];
+  const nameKey = normalizeName(nama);
+  if (nameKey && studentNameMap[nameKey]) return studentNameMap[nameKey];
+  return null;
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -144,22 +164,41 @@ function sortByDateDesc(rows) {
 }
 
 function buildShareText(row) {
-  const studentName = row.nama_siswa || row.nama_peserta_didik || 'Siswa SMKNESBU';
+  const rawEntries = getStudentEntries(row);
+  const entries = rawEntries.length
+    ? rawEntries
+    : [{ nama: row.nama_siswa || row.nama_peserta_didik || 'Siswa SMKNESBU', kelas: row.kelas || '' }];
+
   const event = row.nama_kegiatan || 'Lomba';
-  const rank = row.peringkat ? ` meraih ${row.peringkat}` : '';
-  const level = row.tingkat_lomba ? ` (Tingkat ${row.tingkat_lomba})` : '';
+  const rank = row.peringkat || 'Juara';
+  const level = row.tingkat_lomba ? `tingkat ${row.tingkat_lomba}` : 'tingkat sekolah';
   const place = row.tempat_pelaksanaan || row.tempat || '';
   const date = formatDate(row.tanggal);
-  const meta = [date, place].filter(Boolean).join(' · ');
+  const waktuTempat = [date, place].filter(Boolean).join(' @ ');
 
-  return [
-    `🏆 ${studentName}${rank} pada ${event}${level}!`,
-    meta ? `📅 ${meta}` : '',
-    '',
-    'SMK Negeri 1 Bumijawa',
-    '#SMKNESBU #PrestasiSiswa',
-    SITE_URL,
-  ].filter(Boolean).join('\n');
+  const greeting = entries.length > 1
+    ? 'Selamat kepada para juara'
+    : `Selamat kepada ${entries[0].nama}`;
+
+  const studentLines = entries
+    .map((entry, idx) => `${idx + 1}. ${entry.nama}${entry.kelas ? ` (${entry.kelas})` : ''}`)
+    .join('\n');
+
+  const lines = [
+    '🎉 BANGGA SMKNESBU! 🎉',
+    `${greeting} yang mengharumkan nama SMK Negeri 1 Bumijawa di ${level}! 🏆`,
+    `✨ Prestasi: ${rank} — ${event}`,
+  ];
+  if (waktuTempat) lines.push(`📅 Waktu & Tempat: ${waktuTempat}`);
+  lines.push('👥 Tim Juara:');
+  lines.push('');
+  lines.push(studentLines);
+  lines.push('');
+  lines.push('Terima kasih atas perjuangan dan kerja kerasnya! 👏🔥');
+  lines.push('#SMKNESBU #PrestasiSiswa #KitaBisaKitaBangga');
+  lines.push(SITE_URL);
+
+  return lines.join('\n');
 }
 
 function buildShareLinks(text) {
@@ -173,11 +212,37 @@ function buildShareLinks(text) {
   };
 }
 
-async function sharePrestasi(row) {
+async function fetchShareImageFile(url, filename) {
+  if (!url) return null;
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    if (!blob.type || !blob.type.startsWith('image/')) return null;
+    const ext = blob.type.split('/')[1] || 'jpg';
+    return new File([blob], `${filename}.${ext}`, { type: blob.type });
+  } catch {
+    // Gagal ambil gambar (mis. CORS diblokir Google Drive) — share tetap
+    // lanjut tanpa gambar, tidak perlu menggagalkan seluruh proses share.
+    return null;
+  }
+}
+
+async function sharePrestasi(row, photoUrl) {
   const text = buildShareText(row);
   if (navigator.share) {
+    const payload = { title: 'Prestasi Siswa SMKNESBU', text };
+    // Tautan sudah ada di baris terakhir `text`, jadi jangan kirim `url`
+    // terpisah lagi — kalau dikirim keduanya, banyak target share
+    // (WhatsApp dll) menampilkan tautannya dobel.
+    if (photoUrl && typeof navigator.canShare === 'function') {
+      const file = await fetchShareImageFile(photoUrl, 'prestasi-smknesbu');
+      if (file && navigator.canShare({ files: [file] })) {
+        payload.files = [file];
+      }
+    }
     try {
-      await navigator.share({ title: 'Prestasi Siswa SMKNESBU', text, url: SITE_URL });
+      await navigator.share(payload);
       return true;
     } catch (err) {
       if (err.name === 'AbortError') return true;
@@ -213,9 +278,10 @@ function getStudentEntries(row) {
 
   return names.map((nama, idx) => {
     const nis = nisList[idx] || '';
-    const student = nis ? studentMap[nis] : null;
+    const student = findStudent(nis, nama);
     const kelas = (idx === 0 ? row.kelas : '') || student?.kelas || '';
-    return { nama, nis, kelas };
+    const resolvedNis = nis || student?.nis || '';
+    return { nama, nis: resolvedNis, kelas };
   });
 }
 
@@ -339,7 +405,7 @@ function createFeedCard(row) {
   }
 
   shareBtn.addEventListener('click', async () => {
-    const usedNative = await sharePrestasi(row);
+    const usedNative = await sharePrestasi(row, photoUrl);
     if (usedNative) return;
     const isOpen = !shareMenu.hidden;
     document.querySelectorAll('.feed-share-menu').forEach((menu) => { menu.hidden = true; });
@@ -494,6 +560,7 @@ async function fetchCSV(sheetName) {
 function createStudentList(rows) {
   const students = [];
   const map = {};
+  const nameMap = {};
 
   rows.forEach((row) => {
     const nis = String(row.nis || '').trim();
@@ -501,16 +568,19 @@ function createStudentList(rows) {
     const kelas = String(row.kelas || '').trim();
     const jenisKelamin = String(row.jenis_kelamin || '').trim();
 
-    const isHeader = ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nis.toLowerCase()) || ['nis', 'nama peserta didik', 'kelas', 'jenis kelamin'].includes(nama.toLowerCase());
+    const isHeader = ['nis', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(normalizeKey(nis)) || ['nis', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(normalizeKey(nama));
 
     if (!nama || !nis || isHeader) return;
 
     const student = { nis, nama_peserta_didik: nama, kelas, jenis_kelamin: jenisKelamin };
     students.push(student);
-    if (nis) map[nis] = student;
+    const nisKey = normalizeNis(nis);
+    if (nisKey) map[nisKey] = student;
+    const nameKey = normalizeName(nama);
+    if (nameKey && !nameMap[nameKey]) nameMap[nameKey] = student;
   });
 
-  return { students, map };
+  return { students, map, nameMap };
 }
 
 function updateStats() {
@@ -531,7 +601,8 @@ function createPrestasiRows(rows, headers) {
 
   return objects.map((item) => {
     const nis = String(pickValue(item, ['nis']) || '').trim();
-    const student = studentMap[nis];
+    const namaAwal = String(pickValue(item, ['nama_siswa', 'nama_peserta_didik', 'nama']) || '').split(',')[0];
+    const student = findStudent(nis, namaAwal);
 
     const result = {
       ...item,
@@ -572,9 +643,10 @@ async function loadData() {
     ]);
 
     const rowsSiswa = parseCSV(csvSiswa);
-    const { students, map } = createStudentList(rowsSiswa);
+    const { students, map, nameMap } = createStudentList(rowsSiswa);
     allStudents = students;
     studentMap = map;
+    studentNameMap = nameMap;
     allRows = sortByDateDesc(createPrestasiRows(dataPrestasi.rows, dataPrestasi.cols || []));
 
     updateStats();

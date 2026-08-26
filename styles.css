@@ -39,6 +39,10 @@
 html, body {
   margin: 0;
   min-height: 100%;
+  /* Safety net: stop any single overflowing element (long select text,
+     a table, a badge) from widening the whole page and forcing horizontal
+     scroll on mobile — that's what makes everything look "melebar". */
+  overflow-x: hidden;
 }
 
 body {
@@ -2571,17 +2575,94 @@ tbody tr:hover {
   }
 
   .admin-shell { gap: 24px; }
-  .admin-stat-grid { grid-template-columns: 1fr; margin-bottom: 12px; }
+  .admin-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .admin-stat-card {
+    padding: 12px 8px;
+    text-align: center;
+    justify-items: center;
+    gap: 2px;
+  }
+  .admin-stat-card__label {
+    font-size: 0.6rem;
+    line-height: 1.2;
+  }
+  .admin-stat-card strong {
+    font-size: 1.15rem;
+  }
+  .admin-stat-card__hint {
+    display: none;
+  }
   .admin-table-toolbar { align-items: stretch; flex-direction: column; }
   .admin-filter-group { display: grid; grid-template-columns: 1fr 1fr; }
   .admin-toolbar-select { width: 100%; }
   .admin-header { align-items: stretch; flex-direction: column; }
-  .admin-header-actions { justify-content: space-between; }
+  .admin-header-actions { justify-content: space-between; flex-wrap: wrap; gap: 10px; }
   .table-wrap { overflow-x: auto; }
   .table-wrap table { min-width: 760px; }
   .modal-card { width: calc(100vw - 24px); max-height: 92vh; }
   .modal-body { padding: 16px; }
   .modal-footer { padding: 14px 16px; }
+
+  /* ── Admin topbar: badge + link + logout tend to overflow on phones ── */
+  .admin-topbar .topbar-inner {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .admin-topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+  }
+  .admin-topbar-actions .header-login,
+  .admin-topbar-actions .secondary-btn {
+    padding: 8px 14px;
+    font-size: 0.8rem;
+  }
+
+  /* ── min-width:0 chain: flex/grid items default to min-width:auto,
+     which lets their content (select text, badges, buttons) force the
+     container wider than the screen even when the container itself is
+     constrained. Zeroing it out lets every level actually shrink. ── */
+  .admin-page,
+  .main,
+  .admin-shell,
+  .admin-full-table-section,
+  .admin-table-panel,
+  .admin-header,
+  .admin-header-actions,
+  .admin-tab-nav,
+  .admin-tab-btn,
+  .admin-stat-grid,
+  .admin-stat-card,
+  .admin-table-head,
+  .table-head-right,
+  .admin-table-toolbar,
+  .table-search-wrap,
+  .admin-filter-group,
+  .admin-toolbar-select,
+  .admin-export-group,
+  .table-wrap {
+    min-width: 0;
+  }
+
+  /* ── Table head row: title block + summary/add button ── */
+  .table-head-right {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  /* ── Export buttons: keep icons visible, avoid squeezing off-screen ── */
+  .admin-export-group {
+    width: 100%;
+    margin-left: 0;
+  }
+  .admin-export-group .btn {
+    flex: 1;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 400px) {
@@ -2592,6 +2673,11 @@ tbody tr:hover {
   .btn {
     padding: 10px 12px;
   }
+
+  .admin-stat-grid { gap: 6px; }
+  .admin-stat-card { padding: 10px 4px; }
+  .admin-stat-card__label { font-size: 0.56rem; }
+  .admin-stat-card strong { font-size: 1rem; }
 }
 
 /* ─────────────────────────────────────────
@@ -2647,6 +2733,24 @@ tbody tr:hover {
 
 .admin-tab-btn.active svg {
   color: #a5b4fc;
+}
+
+@media (max-width: 640px) {
+  /* ── Admin tab nav: make it a full-width 2-up switcher ──
+     (placed after the base rule above so it isn't overridden by it) */
+  .admin-tab-nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+  .admin-tab-btn {
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 0.8rem;
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 /* ─────────────────────────────────────────

@@ -47,20 +47,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first: selalu coba ambil versi terbaru dari server dulu.
+  // Cache hanya dipakai sebagai fallback saat offline / network gagal,
+  // sehingga deploy baru langsung terlihat tanpa perlu refresh berkali-kali
+  // atau menaikkan CACHE_NAME secara manual.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-
-      return fetch(request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
-          }
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+    fetch(request)
+      .then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
-        })
-        .catch(() => caches.match('./index.html'));
-    })
+        }
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+        return response;
+      })
+      .catch(() =>
+        caches.match(request).then((cached) => cached || caches.match('./index.html'))
+      )
   );
 });
