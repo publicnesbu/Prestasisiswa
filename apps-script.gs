@@ -47,7 +47,6 @@ function uploadFileToFolder(file, folderId) {
 
   const folder = DriveApp.getFolderById(folderId);
   const uploaded = folder.createFile(file);
-  uploaded.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   const fileId = uploaded.getId();
   return getDriveUrl(fileId);
 }

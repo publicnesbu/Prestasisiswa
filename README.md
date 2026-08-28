@@ -77,6 +77,8 @@ Supaya penambahan data dapat berjalan ke Google Sheet secara nyata, gunakan Goog
 
 Jika muncul error `You do not have permission to call DriveApp.getFolderById`, buka kembali project Apps Script sebagai akun pemilik folder, jalankan `authorizeDriveAccess`, dan deploy ulang versi terbaru. Jangan menjalankan Web App sebagai pengguna yang mengakses halaman.
 
+Jika muncul error saat `setSharing` atau file tidak dapat dibuat publik, pastikan kode Apps Script yang di-deploy adalah versi terbaru. Upload tidak lagi mengubah sharing setiap file; file mengikuti izin folder Drive. Pada Google Workspace, admin domain dapat melarang file publik, sehingga folder perlu dibagikan kepada akun/pengguna yang harus melihat lampiran.
+
 Untuk memeriksa deployment yang sedang dipakai halaman admin, buka URL Web App dengan akhiran `?action=driveCheck`. Respons harus berisi `Drive aktif`. Jika masih muncul error izin, deployment tersebut belum memakai versi/akun Apps Script yang sudah diotorisasi. Fungsi `testDriveWriteAccess` harus berhasil sebelum upload dari admin dapat berhasil.
 
 Script tidak lagi mengubah sharing setiap file dengan `setSharing`, karena Google Workspace dapat melarang file publik. Pastikan folder foto dan dokumen sudah memiliki akses lihat yang sesuai untuk pengguna aplikasi.
