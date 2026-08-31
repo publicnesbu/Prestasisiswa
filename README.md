@@ -29,6 +29,7 @@ Buat Google Spreadsheet dengan dua sheet:
 | tempat | Semarang |
 | tingkat_lomba | Provinsi |
 | peringkat | Juara 1 |
+| pembina | Budi Santoso, S.Kom. |
 | dokumen | https://drive.google.com/... |
 | foto | https://drive.google.com/... |
 

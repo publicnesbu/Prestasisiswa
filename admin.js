@@ -304,7 +304,7 @@ function renderAdminRows(rows) {
     adminSummary.textContent = '0 data';
     adminTableBody.innerHTML = `
       <tr>
-        <td colspan="9" class="empty-state">Belum ada data prestasi yang sesuai.</td>
+        <td colspan="10" class="empty-state">Belum ada data prestasi yang sesuai.</td>
       </tr>
     `;
     return;
@@ -335,6 +335,7 @@ function renderAdminRows(rows) {
       </td>
       <td><span class="${levelBadgeClass(tingkat)}">${tingkat}</span></td>
       <td>${peringkat !== '-' ? `<span class="table-rank-badge">${peringkat}</span>` : '-'}</td>
+      <td style="font-size: 0.78rem;">${row.pembina || '-'}</td>
       <td style="white-space: nowrap; color: #94a3b8; font-size: 0.78rem;">${tanggalText}</td>
       <td><span class="admin-creator-badge" title="Dibuat oleh ${row.oleh || 'tidak diketahui'}">${row.oleh || '-'}</span></td>
       <td><div class="admin-document-links">${documentationLinks || '-'}</div></td>
@@ -413,7 +414,7 @@ function filterAdminRows() {
   const level = adminLevelFilter?.value || 'all';
   const year = adminYearFilter?.value || 'all';
   const filtered = allAdminPrestasiData.filter((row) => {
-    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
+    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.pembina, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
     return (!term || combined.includes(term))
       && (level === 'all' || String(row.tingkat_lomba).toLowerCase() === level.toLowerCase())
       && (year === 'all' || getRowYear(row) === year);
@@ -427,7 +428,7 @@ function getFilteredAdminRows() {
   const year = adminYearFilter?.value || 'all';
 
   return allAdminPrestasiData.filter((row) => {
-    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
+    const combined = [row.nomor_urut, row.nama_siswa, row.nis, row.nama_kegiatan, row.penyelenggara, row.tingkat_lomba, row.peringkat, row.pembina, row.tempat, formatDateForDisplay(row.tanggal)].join(' ').toLowerCase();
     return (!term || combined.includes(term))
       && (level === 'all' || String(row.tingkat_lomba).toLowerCase() === level.toLowerCase())
       && (year === 'all' || getRowYear(row) === year);
@@ -466,6 +467,7 @@ function getExportRows() {
       penyelenggara: row.penyelenggara || '-',
       tingkat: row.tingkat_lomba || '-',
       peringkat: row.peringkat || '-',
+      pembina: row.pembina || '-',
       tanggalMulai: dateRange.mulai,
       tanggalSelesai: dateRange.selesai,
       foto: getAdminPhotoUrl(row.foto) || '-',
@@ -481,7 +483,7 @@ function exportAdminXls() {
     return;
   }
 
-  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
+  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Pembina', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
   const exportHeaders = headers;
   const body = rows.map((row) => `<tr>${Object.entries(row).filter(([key]) => key !== 'foto').map(([, value]) => `<td>${escapeExportValue(value)}</td>`).join('')}</tr>`).join('');
   const attachmentBody = rows.filter((row) => row.foto !== '-').map((row) => `<div class="attachment"><div><strong>${escapeExportValue(row.nama)}</strong><br>${escapeExportValue(row.kegiatan)}</div><img class="export-photo" src="${escapeExportValue(row.foto)}" alt="Foto dokumentasi"></div>`).join('');
@@ -510,7 +512,7 @@ function exportAdminPdf() {
     return;
   }
 
-  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
+  const headers = ['No', 'Nama Siswa', 'NIS', 'Kegiatan / Lomba', 'Penyelenggara', 'Tingkat', 'Peringkat', 'Pembina', 'Tanggal Mulai', 'Tanggal Selesai', 'Tempat'];
   const exportHeaders = headers;
   const body = rows.map((row) => `<tr>${Object.entries(row).filter(([key]) => key !== 'foto').map(([, value]) => `<td>${escapeExportValue(value)}</td>`).join('')}</tr>`).join('');
   const attachmentBody = rows.filter((row) => row.foto !== '-').map((row) => `<div class="attachment"><div><strong>${escapeExportValue(row.nama)}</strong><br>${escapeExportValue(row.kegiatan)}</div><img class="export-photo" src="${escapeExportValue(row.foto)}" alt="Foto dokumentasi"></div>`).join('');
@@ -578,7 +580,7 @@ function isHeaderLike(value) {
   const text = String(value || '').trim();
   if (!text) return false;
   const lowered = normalizeKey(text);
-  return ['no', 'nama_kegiatan', 'penyelenggara', 'nama_siswa', 'nis', 'tanggal', 'tempat_pelaksanaan', 'tingkat_lomba', 'peringkat', 'dokumen', 'foto', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(lowered);
+  return ['no', 'nama_kegiatan', 'penyelenggara', 'nama_siswa', 'nis', 'tanggal', 'tempat_pelaksanaan', 'tingkat_lomba', 'peringkat', 'pembina', 'dokumen', 'foto', 'nama_peserta_didik', 'kelas', 'jenis_kelamin'].includes(lowered);
 }
 
 /* ── Multi-Student Picker State ── */
@@ -796,6 +798,7 @@ async function fetchPrestasiData() {
         const tempat = String(pickValue(row, ['tempat', 'tempat_pelaksanaan', 'tempat_lomba']) || '').trim();
         const foto = String(pickValue(row, ['foto', 'foto_kegiatan']) || '').trim();
         const dokumen = String(pickValue(row, ['dokumen', 'dokumen_pendukung']) || '').trim();
+        const pembina = String(pickValue(row, ['pembina', 'guru_pembina', 'nama_pembina']) || '').trim();
         const oleh = String(pickValue(row, ['oleh', 'dibuat_oleh', 'pembuat']) || '').trim();
 
         if (!namaSiswa && !namaKegiatan && !tingkat && !peringkat && !tanggal && !penyelenggara && !tempat && !nis) {
@@ -810,6 +813,7 @@ async function fetchPrestasiData() {
           penyelenggara,
           tingkat_lomba: tingkat,
           peringkat,
+          pembina,
           tanggal,
           tempat,
           foto,
@@ -936,6 +940,7 @@ function populateFormFromRow(row) {
     tempat: row.tempat || '',
     tingkat_lomba: row.tingkat_lomba || 'Kabupaten',
     peringkat: row.peringkat || '',
+    pembina: row.pembina || '',
     nomor_urut: row.nomor_urut || '',
   };
 
@@ -1486,6 +1491,7 @@ if (prestasiForm) {
       tempat: String(document.querySelector('[name="tempat"]')?.value ?? formData.get('tempat') ?? '').trim(),
       tingkat_lomba: String(document.querySelector('[name="tingkat_lomba"]')?.value ?? formData.get('tingkat_lomba') ?? '').trim(),
       peringkat: String(document.querySelector('[name="peringkat"]')?.value ?? formData.get('peringkat') ?? '').trim(),
+      pembina: String(document.querySelector('[name="pembina"]')?.value ?? formData.get('pembina') ?? '').trim(),
       user: session.user || 'admin',
       fotoFile: formData.get('fotoFile'),
       dokumenFile: formData.get('dokumenFile'),

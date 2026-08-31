@@ -120,6 +120,7 @@ function writePrestasiRow(payload) {
     tempat: ['tempat', 'tempat_pelaksanaan', 'tempat_lomba'],
     tingkat_lomba: ['tingkat_lomba', 'tingkat', 'tingkat_lomba_1'],
     peringkat: ['peringkat', 'juara'],
+    pembina: ['pembina', 'guru_pembina', 'nama_pembina'],
     foto: ['foto', 'foto_kegiatan'],
     dokumen: ['dokumen', 'dokumen_pendukung'],
     oleh: ['oleh', 'dibuat_oleh', 'pembuat'],
@@ -252,6 +253,7 @@ function updatePrestasiRow(payload) {
     tempat: ['tempat', 'tempat_pelaksanaan', 'tempat_lomba'],
     tingkat_lomba: ['tingkat_lomba', 'tingkat', 'tingkat_lomba_1'],
     peringkat: ['peringkat', 'juara'],
+    pembina: ['pembina', 'guru_pembina', 'nama_pembina'],
     foto: ['foto', 'foto_kegiatan'],
     dokumen: ['dokumen', 'dokumen_pendukung'],
     oleh: ['oleh', 'dibuat_oleh', 'pembuat'],
@@ -426,6 +428,7 @@ function doPost(e) {
         tempat: normalizeFormValue(body.tempat || e.parameter && e.parameter.tempat),
         tingkat_lomba: normalizeFormValue(body.tingkat_lomba || e.parameter && e.parameter.tingkat_lomba),
         peringkat: normalizeFormValue(body.peringkat || e.parameter && e.parameter.peringkat),
+        pembina: normalizeFormValue(body.pembina || e.parameter && e.parameter.pembina),
         oleh: normalizeFormValue(body.oleh || body.user || e.parameter && (e.parameter.oleh || e.parameter.user)),
       };
 

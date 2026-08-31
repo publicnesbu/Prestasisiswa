@@ -190,6 +190,7 @@ function buildShareText(row) {
     `✨ Prestasi: ${rank} — ${event}`,
   ];
   if (waktuTempat) lines.push(`📅 Waktu & Tempat: ${waktuTempat}`);
+  if (row.pembina) lines.push(`👨‍🏫 Pembina: ${row.pembina}`);
   lines.push('👥 Tim Juara:');
   lines.push('');
   lines.push(studentLines);
@@ -319,6 +320,7 @@ function createFeedCard(row) {
   const level = row.tingkat_lomba || '';
   const event = row.nama_kegiatan || '';
   const organizer = row.penyelenggara || '';
+  const pembina = row.pembina || '';
   const place = row.tempat_pelaksanaan || row.tempat || '';
   const dateStr = formatDate(row.tanggal);
   const shareText = buildShareText(row);
@@ -368,6 +370,7 @@ function createFeedCard(row) {
       </p>
       <h3 class="feed-card__event">${escapeHtml(event)}</h3>
       ${organizer ? `<p class="feed-card__meta">${escapeHtml(organizer)}</p>` : ''}
+      ${pembina ? `<p class="feed-card__meta">Pembina: ${escapeHtml(pembina)}</p>` : ''}
       <p class="feed-card__tags">#SMKNESBU #PrestasiSiswa${level ? ` #${escapeHtml(level.replace(/\s+/g, ''))}` : ''}</p>
     </div>
 
@@ -475,6 +478,7 @@ function applyFilters() {
       row.tingkat_lomba,
       row.kelas,
       row.jenis_kelamin,
+      row.pembina,
     ].join(' ').toLowerCase();
     const matchesSearch = !searchTerm || combined.includes(searchTerm);
     return matchesFilter && matchesSearch;
@@ -513,7 +517,7 @@ function isHeaderLike(value) {
   return lowered === 'nis' || lowered === 'nama_peserta_didik' || lowered === 'kelas' || lowered === 'jenis_kelamin'
     || lowered === 'no' || lowered === 'nama_kegiatan' || lowered === 'penyelenggara' || lowered === 'nama_siswa'
     || lowered === 'tanggal' || lowered === 'tempat_pelaksanaan' || lowered === 'tingkat_lomba' || lowered === 'peringkat'
-    || lowered === 'dokumen' || lowered === 'foto';
+    || lowered === 'dokumen' || lowered === 'foto' || lowered === 'pembina';
 }
 
 function parseCSV(text) {
@@ -617,6 +621,7 @@ function createPrestasiRows(rows, headers) {
       peringkat: String(pickValue(item, ['peringkat', 'juara']) || '').trim(),
       dokumen: String(pickValue(item, ['dokumen', 'lampiran']) || '').trim(),
       foto: String(pickValue(item, ['foto', 'foto_kegiatan']) || '').trim(),
+      pembina: String(pickValue(item, ['pembina', 'guru_pembina', 'nama_pembina']) || '').trim(),
       kelas: item.kelas || student?.kelas || '',
       jenis_kelamin: item.jenis_kelamin || student?.jenis_kelamin || '',
       nama_peserta_didik: String(pickValue(item, ['nama_siswa', 'nama_peserta_didik', 'nama']) || student?.nama_peserta_didik || '').trim(),
